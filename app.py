@@ -10,7 +10,7 @@ class MyApp(wx.App):
 		return True
 
 
-app = MyApp(False)
+app = MyApp(True)
 app.MainLoop()
 
 

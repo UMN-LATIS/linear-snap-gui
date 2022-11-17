@@ -1,6 +1,7 @@
 import wx
-import serial
+# import serial
 import time
+import threading
 from miniMacroFrame import MiniMacroFrame
 from miniMacroControl import miniMacroControl
 
@@ -9,9 +10,11 @@ class MyGui(MiniMacroFrame):
 	controller =  miniMacroControl();
 
 	def moveShortBack(self, event):
-		self.controller.runRail("S", "1")
+		print("Moving Short Back")
+		self.controller.runRail("S", "0")
 
 	def stopShort( self, event ):
+		print("Stop")
 		self.controller.stopRail("S")
 
 	def moveLongLeft( self, event ):
@@ -24,7 +27,8 @@ class MyGui(MiniMacroFrame):
 		self.controller.runRail("L", "0")
 
 	def moveShortForward( self, event ):
-		self.controller.runRail("S", "0")
+		print("Moving Short Forward")
+		self.controller.runRail("S", "1")
 
 	def goHome( self, event ):
 		self.controller.goHome()
@@ -40,4 +44,9 @@ class MyGui(MiniMacroFrame):
 		print("Core Complete")
 
 	def imageCore( self, event ):
-		self.controller.imageCore(self.coreComplete)
+            print("Start")
+            t = threading.Thread(target=self.controller.imageCore,
+                                 args=(self.m_textCtrl3.GetValue(), self.coreComplete,), name='worker')
+            t.daemon = True
+            t.start()
+            # self.controller.imageCore(self.coreComplete)
