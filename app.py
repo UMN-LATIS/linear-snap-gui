@@ -1,5 +1,9 @@
 import wx
 from gui import MyGui
+import multiprocessing
+
+if __name__ == "__main__":
+	multiprocessing.freeze_support()
 
 class MyApp(wx.App):
 	def OnInit(self):
