@@ -7,6 +7,7 @@ import os
 import platform
 import time;
 import atexit
+from pubsub import pub
 
 if(platform.system() == "Darwin"):
     os.system("killall -9 ptpcamerad")
@@ -15,7 +16,9 @@ if(platform.system() == "Darwin"):
 
 class CameraControl:
     image = None
+    t = None
     photoCount = 0
+    stopWaiting = False
 
     def __init__(self):
         if(platform.system() == "Darwin"):
@@ -33,13 +36,15 @@ class CameraControl:
     
     def setCoreId(self, coreId):
         self.coreId = coreId
-        
+
+
 
     def cleanup(self):
         self.stopLiveView = True
         time.sleep(0.1)
         print("Running cleanup...")
-        self.camera.exit()
+        if(self.camera is not None):
+            self.camera.exit()
 
     def setLiveView(self, liveView):
         if(liveView):
@@ -82,8 +87,37 @@ class CameraControl:
         print("done sorting")
 
 
+
+    def stopWaiting(self):
+        # todo drain the filesystem
+        self.t.stop()
+
+    def testForBlank(self, photo):
+        # Load the image
+        image = cv2.imread(photo)
+        # Get the image height and width
+        height, width = image.shape[:2]
+        # Get the center point
+        x, y = int(width/2), int(height/2)
+        # Crop the image to a 500x500 square, centered around the center point
+        cropped_image = image[y-250:y+250, x-250:x+250]
+        # Get the average brightness of the image
+        b, g, r, a = cv2.mean(cropped_image)
+        avg_brightness = (b + g + r) / 3
+        # Check if the average brightness is below a certain threshold
+        threshold = 10
+        if avg_brightness < threshold:
+            print("End of core")
+            pub.sendMessage("coreStatus", message="end")
+
+        self.newPosition = False
+
     def waitForPhoto(self, coreId):
+        pub.sendMessage("coreStatus", message="end")
+        return
         self.coreId = coreId
+        self.newPosition = True
+        self.stopWaiting = False
         timeout = 3000  # milliseconds
         while True:
             event_type, event_data = self.camera.wait_for_event(timeout)
@@ -93,13 +127,19 @@ class CameraControl:
                 target_path = os.path.join(os.getcwd(), event_data.name)
                 print("Image is being saved to {}".format(target_path))
                 cam_file.save(target_path)
+                if(self.newPosition):
+                    self.t = threading.Thread(target=self.testForBlank,args=(target_path,), name='photo-sort')
+                    self.t.daemon = True
+                    self.t.start()
                 self.photoCount = self.photoCount + 1
                 if(self.photoCount == 20):
                     self.photoCount = 0
                     self.t = threading.Thread(target=self.sortPhotos, name='photo-sort')
                     self.t.daemon = True
                     self.t.start()
-
+                    self.newPosition = True
+            if(self.stopWaiting):
+                break
 
     def runLiveView(self):
         while True:

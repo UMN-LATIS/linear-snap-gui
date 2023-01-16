@@ -2,6 +2,7 @@ import os
 import sys
 import serial;
 import time
+from pubsub import pub
 
 class miniMacroControl:
 
@@ -11,7 +12,7 @@ class miniMacroControl:
 	railPosition = {"S": 0, "L": 0}
 	photoCount = 0
 	positionCount = 0
-
+	arduino = None
 
 	def __init__(self):
 		try:
@@ -20,9 +21,8 @@ class miniMacroControl:
 		except:
 			print("No Arduino Found")
 			
+		pub.subscribe(self.endOfCore, "coreStatus")
 
-	def halt(self):
-		self.halt = True
 
 	def runRail(self, rail, direction):
 		self.railPosition[rail] = sys.maxint
@@ -39,21 +39,29 @@ class miniMacroControl:
 		self.write_read("H")
 
 	def write_read(self, x):
-		self.arduino.reset_input_buffer()
-		self.arduino.write(bytes(x + "\n", 'ASCII'))
-		time.sleep(0.05)
-		data = self.arduino.readline().decode('ASCII')
-		return data
+		if(self.arduino is not None):
+			self.arduino.reset_input_buffer()
+			self.arduino.write(bytes(x + "\n", 'ASCII'))
+			time.sleep(0.05)
+			data = self.arduino.readline().decode('ASCII')
+			return data
 
 	def readData(self):
-		data = self.arduino.readline().decode('ASCII')
-		return data
+		if(self.arduino is not None):
+			data = self.arduino.readline().decode('ASCII')
+			return data
 
 	def findFocus(self):
 		print("Hey")
 
+	def endOfCore(self, message):
+		self.halt = True
+		time.sleep(0.1)
+		self.goHome()
+
 	def imageCore(self, coreId, callback):
 		self.coreId = coreId
+		self.halt = False
 		print("Starting ", self.coreId)
 
 		self.callback = callback;
@@ -64,11 +72,11 @@ class miniMacroControl:
 		data = self.goHome();
 		print(data)
 		while(data != "HOME\r\n"):
-			data = self.arduino.readline()
+			data = self.readData()
 			if(self.halt):
 				return
 			time.sleep(0.1)
-			print(data)
+			# print(data)
 
 		#assuming we made it home, we reset our position indicators
 		self.railPosition["S"] = 0;

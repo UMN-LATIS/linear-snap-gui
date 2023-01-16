@@ -14,7 +14,7 @@ class MyApp(wx.App):
 		return True
 
 
-app = MyApp(True)
+app = MyApp(False)
 app.MainLoop()
 
 
