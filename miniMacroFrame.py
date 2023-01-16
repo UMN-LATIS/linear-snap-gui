@@ -109,9 +109,9 @@ class MiniMacroFrame ( wx.Frame ):
 
 		self.coreCompleteText = wx.StaticText( self, wx.ID_ANY, u"Core Complete! 🎉", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.coreCompleteText.Wrap( -1 )
-		self.coreCompleteText.Hide()
 
 		self.coreCompleteText.SetFont( wx.Font( 30, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL, False, wx.EmptyString ) )
+		self.coreCompleteText.Hide()
 
 		bSizer5.Add( self.coreCompleteText, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5 )
 

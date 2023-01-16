@@ -113,8 +113,6 @@ class CameraControl:
         self.newPosition = False
 
     def waitForPhoto(self, coreId):
-        pub.sendMessage("coreStatus", message="end")
-        return
         self.coreId = coreId
         self.newPosition = True
         self.stopWaiting = False

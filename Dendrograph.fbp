@@ -949,7 +949,7 @@
                                 <property name="floatable">1</property>
                                 <property name="font">,90,400,30,70,0</property>
                                 <property name="gripper">0</property>
-                                <property name="hidden">0</property>
+                                <property name="hidden">1</property>
                                 <property name="id">wxID_ANY</property>
                                 <property name="label">Core Complete! 🎉</property>
                                 <property name="markup">0</property>
