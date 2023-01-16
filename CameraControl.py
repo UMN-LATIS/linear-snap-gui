@@ -19,6 +19,8 @@ class CameraControl:
     t = None
     photoCount = 0
     stopWaiting = False
+    stopLiveView = True
+    laplacian = 0
 
     def __init__(self):
         if(platform.system() == "Darwin"):
@@ -48,6 +50,8 @@ class CameraControl:
 
     def setLiveView(self, liveView):
         if(liveView):
+            if(self.stopLiveView == False):
+                return
             self.stopLiveView = False
 
             self.t = threading.Thread(target=self.runLiveView, name='liveViewWorker')

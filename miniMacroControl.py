@@ -1,5 +1,7 @@
+from math import floor
 import os
 import sys
+import threading
 import serial;
 import time
 from pubsub import pub
@@ -51,17 +53,44 @@ class miniMacroControl:
 			data = self.arduino.readline().decode('ASCII')
 			return data
 
-	def findFocus(self):
-		print("Hey")
+	def findFocus(self, camera=None):
+		# find focus
+		if(camera):
+			self.camera = camera
+		self.camera.setLiveView(True)
+		previousFocusValue = 0
+		focalValues = []
+		previousFocusAverage = 0
+		while(True):
+			if(len(focalValues) < 6):
+				focalValues.append(self.camera.laplacian)
+				time.sleep(0.08)
+				continue;
+
+			cameraAverage = sum(focalValues) / len(focalValues)
+			print("Average: ", cameraAverage, " Previous: ", previousFocusAverage)
+			if(round(cameraAverage) - round(previousFocusAverage) < -1):
+				print("Focus found, average is ", cameraAverage)
+				break
+			
+			previousFocusAverage = max(cameraAverage, previousFocusAverage)
+			focalValues = []
+			self.moveRail("S", 1, 1);
+
+		self.camera.setLiveView(False)
+		self.focalPosition = self.railPosition["S"]
+		print("Focal Position: ", self.focalPosition)
+		time.sleep(4)
 
 	def endOfCore(self, message):
 		self.halt = True
 		time.sleep(0.1)
 		self.goHome()
 
-	def imageCore(self, coreId, callback):
+	def imageCore(self, coreId, callback, camera):
 		self.coreId = coreId
 		self.halt = False
+		self.camera = camera
 		print("Starting ", self.coreId)
 
 		self.callback = callback;
@@ -70,63 +99,57 @@ class miniMacroControl:
 
 		print("Seeking Home")
 		data = self.goHome();
-		print(data)
 		while(data != "HOME\r\n"):
 			data = self.readData()
 			if(self.halt):
 				return
 			time.sleep(0.1)
-			# print(data)
 
 		#assuming we made it home, we reset our position indicators
 		self.railPosition["S"] = 0;
 		self.railPosition["L"] = 0;
 
+		# move to approximate focus position
+		print("going to focal plane")
+		data = self.moveRail("S", 0, 30);
+		print(data)
+		while(data != "POSITIONED\r\n"):
+			data = self.readData()
+			if(self.halt):
+				return
+			time.sleep(0.1)
+
+
+		self.findFocus()		
+		# start camera logging
+		t = threading.Thread(target=self.camera.waitForPhoto,
+								args=(self.coreId,), name='camera-worker')
+		t.daemon = True
+		t.start()
+
+		print("Moving to start position")
+		data = self.moveRail("S",1, 10 );
+		while(data != "POSITIONED\r\n"):
+			data = self.arduino.readline()
+			if(self.halt):
+				return
+			time.sleep(0.1)
 		self.positionCount = 0;
 		while(1):
 			print("Starting Position")
-			surfaceValues = [];	
 			if(self.halt):
 				return
-			print("Finding Focus")
-			# data = self.findFocus();
-			# print(data)
-			# while("FOCUS" not in data):
-			# 	data = self.arduino.readline()
-			# 	if(self.halt):
-			# 		return
-			# 	time.sleep(0.1)
-			# 	print(data)
 
-			# coreSurface = data.split(":")[1]
-			# surfaceValues.append(coreSurface)
-			# if(abs(surfaceValues.mean() - coreSurface) > surfaceValues.stddev()):
-			# 	print("Core somewhere weird or end of core found")
-			# 	return;
-			
-			# if(self.halt):
-			# 	return
-			# print("Moving to start position")
-			# data = self.moveRail("S",0, "30" );
-			# print(data)
-			# while(data != "POSITIONED\r\n"):
-			# 	data = self.arduino.readline()
-			# 	if(self.halt):
-			# 		return
-			# 	time.sleep(0.1)
-			# 	print(data)
-			print("Starting capture")
+			print("Starting capture for position ", self.positionCount)
 			for i in range(1, 21):
 				print("Position ", i)
 				self.write_read("P");
 				time.sleep(0.3)
 				data = self.moveRail("S", 0, 1);
-				print(data)
 				while(data != "POSITIONED\r\n"):
 					data = self.readData()
 					if(self.halt):
 						return
-					print(data)
 					time.sleep(0.1)
 				if(self.halt):
 					return
@@ -142,7 +165,6 @@ class miniMacroControl:
 				if(self.halt):
 					return
 				time.sleep(0.1)
-				print(data)
 			self.positionCount = self.positionCount + 1
 			if(self.positionCount == 10):
 				return;

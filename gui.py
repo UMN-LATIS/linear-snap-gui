@@ -74,28 +74,29 @@ class MyGui(MiniMacroFrame):
 	def goHome( self, event ):
 		self.controller.goHome()
 
-	def findFocus( self, event ):
-		self.controller.findFocus()
-
 	def stopAll( self, event ):
 		self.controller.stopRail("S")
 		self.controller.stopRail("L")
 		self.controller.halt = True
+		self.camera.setLiveView(False)
 		self.camera.stopWaiting = True
 		
 
 	def coreComplete(self):
 		print("Core Complete")
 
+	def findFocus(self, event):
+		print("Finding Focus")
+		t = threading.Thread(target=self.controller.findFocus,
+								args=(self.camera,), name='focus-worker')
+		t.daemon = True
+		t.start()
 
 	def imageCore( self, event ):
 		print("Start")
-		t = threading.Thread(target=self.camera.waitForPhoto,
-								args=(self.m_coreId.GetValue(),), name='camera-worker')
-		t.daemon = True
-		t.start()
+
 		t = threading.Thread(target=self.controller.imageCore,
-								args=(self.m_coreId.GetValue(), self.coreComplete,), name='core-worker')
+								args=(self.m_coreId.GetValue(), self.coreComplete, self.camera,), name='core-worker')
 		t.daemon = True
 		t.start()
 		# self.controller.imageCore(self.coreComplete)	
