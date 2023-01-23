@@ -21,15 +21,17 @@ class CameraControl:
     stopWaiting = False
     stopLiveView = True
     laplacian = 0
+    camera = None
 
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config
         if(platform.system() == "Darwin"):
             os.system("killall -9 ptpcamerad")
         # Init camera
         try:
             self.camera = gp.Camera()
-            self.camera.init()
-            self.camera_config = self.camera.get_config()
+            # self.camera.init()
+            # self.camera_config = self.camera.get_config()
         except:
             print("Camera not found")
             self.camera = None
@@ -60,7 +62,7 @@ class CameraControl:
         else:
             self.stopLiveView = True
     
-    def sortPhotos(self):
+    def sortPhotos(self, temp_folder_path, new_folder_path):
         print("Sorting photos")
         # organize photos
         
@@ -69,7 +71,7 @@ class CameraControl:
         iterations = 0
 
             # filter the list to only include jpeg files
-        files = os.listdir(os.getcwd())
+        files = os.listdir(temp_folder_path)
         files.sort()
         jpeg_files = [f for f in files if f.endswith('.JPG') or f.endswith('.jpg')]
         
@@ -77,7 +79,7 @@ class CameraControl:
         # create a new folder with a numeric title (001, 002, 003 etc)
         i = 1
         while True:
-            new_folder_path = os.path.join(os.getcwd(), '{:03d}'.format(i))
+            new_folder_path = os.path.join(new_folder_path, '{:03d}'.format(i))
             if not os.path.exists(new_folder_path):
                 os.makedirs(new_folder_path)
                 break
@@ -85,16 +87,13 @@ class CameraControl:
 
         # move all jpeg files into the new folder
         for jpeg in jpeg_files[:20]:
-            old_path = os.path.join(os.getcwd(), jpeg)
+            old_path = os.path.join(temp_folder_path, jpeg)
             new_path = os.path.join(new_folder_path, jpeg)
             os.rename(old_path, new_path)
         print("done sorting")
 
 
 
-    def stopWaiting(self):
-        # todo drain the filesystem
-        self.t.stop()
 
     def testForBlank(self, photo):
         # Load the image
@@ -112,11 +111,35 @@ class CameraControl:
         threshold = 10
         if avg_brightness < threshold:
             print("End of core")
+            self.stopWaiting = True
             pub.sendMessage("coreStatus", message="end")
 
         self.newPosition = False
 
     def waitForPhoto(self, coreId):
+        new_folder_path = os.path.join(self.config.configValues["BasePath"], self.coreId)
+        if not os.path.exists(new_folder_path):
+            os.makedirs(new_folder_path)
+
+        temp_folder_path = os.path.join(new_folder_path, "scratch")
+        if not os.path.exists(temp_folder_path):
+            os.makedirs(temp_folder_path)
+        
+
+
+        if(platform.system() == "Darwin"):
+            os.system("killall -9 ptpcamerad")
+        self.camera.init()
+        self.camera_config = self.camera.get_config()
+        child = self.camera_config.get_child_by_name("iso")
+        child.set_value(self.config.configValues["captureISO"])
+        self.camera.set_single_config("iso", child)
+
+        child = self.camera_config.get_child_by_name("shutterspeed")
+        child.set_value(self.config.configValues["captureShutter"])
+        self.camera.set_single_config("shutterspeed", child)
+        self.photoCount = 0;
+        print("Waiting for Photos")
         self.coreId = coreId
         self.newPosition = True
         self.stopWaiting = False
@@ -124,26 +147,45 @@ class CameraControl:
         while True:
             event_type, event_data = self.camera.wait_for_event(timeout)
             if event_type == gp.GP_EVENT_FILE_ADDED:
+                print("new loop")
                 cam_file = self.camera.file_get(
                     event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
-                target_path = os.path.join(os.getcwd(), event_data.name)
+                target_path = os.path.join(temp_folder_path, event_data.name)
                 print("Image is being saved to {}".format(target_path))
                 cam_file.save(target_path)
                 if(self.newPosition):
-                    self.t = threading.Thread(target=self.testForBlank,args=(target_path,), name='photo-sort')
-                    self.t.daemon = True
-                    self.t.start()
+                    print("new position")
+                    self.blank = threading.Thread(target=self.testForBlank,args=(target_path,), name='test-for-blank')
+                    self.blank.daemon = True
+                    self.blank.start()
                 self.photoCount = self.photoCount + 1
                 if(self.photoCount == 20):
+                    print("end of position")
                     self.photoCount = 0
-                    self.t = threading.Thread(target=self.sortPhotos, name='photo-sort')
-                    self.t.daemon = True
-                    self.t.start()
+                    self.sort = threading.Thread(target=self.sortPhotos, args=(temp_folder_path,new_folder_path, ), name='photo-sort')
+                    self.sort.daemon = True
+                    self.sort.start()
                     self.newPosition = True
             if(self.stopWaiting):
+                print("Breaking")
+                time.sleep(2)
+                self.camera.exit()
                 break
 
     def runLiveView(self):
+        if(platform.system() == "Darwin"):
+            os.system("killall -9 ptpcamerad")
+        self.camera.init()
+        self.camera_config = self.camera.get_config()
+
+        
+        child = self.camera_config.get_child_by_name("iso")
+        child.set_value(self.config.configValues["previewISO"])
+        self.camera.set_single_config("iso", child)
+
+        child = self.camera_config.get_child_by_name("shutterspeed")
+        child.set_value(self.config.configValues["previewShutter"])
+        self.camera.set_single_config("shutterspeed", child)
         while True:
             # Get the preview frame
             data = self.camera.capture_preview()
@@ -176,15 +218,16 @@ class CameraControl:
 
             if(self.stopLiveView):
                 time.sleep(0.1)
-                self.camera_config = self.camera.get_config()
+                # self.camera_config = self.camera.get_config()
                 
-                child = self.camera_config.get_child_by_name("capture")
-                #to-enable:
-                child.set_value(0)
-                #to-disable:
-                # child.set_value("20,1,3,14,1,60f,1,0")
-                self.camera.set_single_config("capture", child)
+                # child = self.camera_config.get_child_by_name("capture")
+                # #to-enable:
+                # child.set_value(0)
+                # #to-disable:
+                # # child.set_value("20,1,3,14,1,60f,1,0")
+                # self.camera.set_single_config("capture", child)
                 self.image = None
+                self.camera.exit()
                 # self.camera.set_config(self.camera_config)
                 break
 

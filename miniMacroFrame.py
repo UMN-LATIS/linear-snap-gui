@@ -18,7 +18,7 @@ class MiniMacroFrame ( wx.Frame ):
 
 	def __init__( self, parent ):
 		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = wx.EmptyString, pos = wx.DefaultPosition, size = wx.Size( 1000,464 ), style = wx.DEFAULT_FRAME_STYLE|wx.TAB_TRAVERSAL )
-		
+	
 		self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
 
 		bSizer6 = wx.BoxSizer( wx.HORIZONTAL )
@@ -115,13 +115,16 @@ class MiniMacroFrame ( wx.Frame ):
 
 		bSizer5.Add( self.coreCompleteText, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5 )
 
-		gSizer2 = wx.GridSizer( 0, 2, 0, 0 )
+		gSizer2 = wx.GridSizer( 0, 3, 0, 0 )
 
 		self.halt_button = wx.Button( self, wx.ID_ANY, u"Halt", wx.DefaultPosition, wx.DefaultSize, 0 )
-		gSizer2.Add( self.halt_button, 0, wx.ALL|wx.ALIGN_BOTTOM, 5 )
+		gSizer2.Add( self.halt_button, 0, wx.ALIGN_BOTTOM|wx.ALL, 5 )
+
+		self.preferences = wx.Button( self, wx.ID_ANY, u"Preferences", wx.DefaultPosition, wx.DefaultSize, 0 )
+		gSizer2.Add( self.preferences, 0, wx.ALIGN_BOTTOM|wx.ALL, 5 )
 
 		self.start_core = wx.Button( self, wx.ID_ANY, u"Start Core", wx.DefaultPosition, wx.DefaultSize, 0 )
-		gSizer2.Add( self.start_core, 0, wx.ALL|wx.ALIGN_BOTTOM|wx.ALIGN_RIGHT, 5 )
+		gSizer2.Add( self.start_core, 0, wx.ALIGN_BOTTOM|wx.ALIGN_RIGHT|wx.ALL, 5 )
 
 
 		bSizer5.Add( gSizer2, 1, wx.EXPAND, 5 )
@@ -232,20 +235,10 @@ class MiniMacroFrame ( wx.Frame ):
 		self.m_button18.Bind( wx.EVT_LEFT_UP, self.goHome )
 		self.m_button19.Bind( wx.EVT_LEFT_UP, self.findFocus )
 		self.halt_button.Bind( wx.EVT_LEFT_UP, self.stopAll )
+		self.preferences.Bind( wx.EVT_BUTTON, self.openPrefs )
 		self.start_core.Bind( wx.EVT_LEFT_UP, self.imageCore )
-		self.m_EnableLiveView.Bind( wx.EVT_CHECKBOX, self.liveView )
-		
-		self.timer = wx.Timer(self)
-		self.timer.Start(int(1000. / 15.))
-		
-		self.m_LiveView.Bind(wx.EVT_PAINT, self.OnPaint)
-		self.Bind(wx.EVT_TIMER, self.NextFrame)
 
-		# Create the menubar
-		menuBar = wx.MenuBar()
 
-		self.SetMenuBar(menuBar)
-		self.Bind(wx.EVT_CLOSE, self.onExitButton)
 
 
 	def __del__( self ):
@@ -294,4 +287,7 @@ class MiniMacroFrame ( wx.Frame ):
 		event.Skip()
 
 	def liveView( self, event ):
+		event.Skip()
+
+	def openPrefs( self, event ):
 		event.Skip()

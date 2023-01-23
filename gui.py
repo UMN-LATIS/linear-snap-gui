@@ -7,15 +7,31 @@ from miniMacroControl import miniMacroControl
 from CameraControl import CameraControl
 import cv2
 from pubsub import pub
+from config import LSConfig;
+from Preferences import PreferencesEditor;
+
 class MyGui(MiniMacroFrame):
 	
 	
 	app = wx.App(0)
 	
 	def __init__(self, parent):
-		self.controller =  miniMacroControl();
-		self.camera = CameraControl();
+		self.config = LSConfig()
+		self.controller =  miniMacroControl(self.config);
+		self.camera = CameraControl(self.config);
 		MiniMacroFrame.__init__(self, parent)
+		self.timer = wx.Timer(self)
+		self.timer.Start(int(1000. / 15.))
+		
+		self.m_LiveView.Bind(wx.EVT_PAINT, self.OnPaint)
+		self.Bind(wx.EVT_TIMER, self.NextFrame)
+
+		# Create the menubar
+		menuBar = wx.MenuBar()
+
+		self.SetMenuBar(menuBar)
+		self.Bind(wx.EVT_CLOSE, self.onExitButton)
+
 		pub.subscribe(self.coreStatus, "coreStatus")
 
 	def onExitButton(self, event):
@@ -35,6 +51,7 @@ class MyGui(MiniMacroFrame):
 			wx.CallAfter(self.m_coreId.SetValue, "")
 			timer = threading.Timer(6,lambda : self.coreCompleteText.Hide())
 			timer.start()
+			self.controller.goHome()
 
 	def moveShortBack(self, event):
 		print("Moving Short Back")
@@ -129,3 +146,7 @@ class MyGui(MiniMacroFrame):
 
 	def OnTimer(self, evt):
 		self.drawFrame()
+
+	def openPrefs( self, event ):
+		self.prefs = PreferencesEditor(self.config)
+		self.prefs.Show(self)
