@@ -20,6 +20,8 @@ class MyGui(MiniMacroFrame):
 		self.controller =  miniMacroControl(self.config);
 		self.camera = CameraControl(self.config);
 		MiniMacroFrame.__init__(self, parent)
+		
+		self.m_EnableLiveView.Bind( wx.EVT_CHECKBOX, self.liveView )
 		self.timer = wx.Timer(self)
 		self.timer.Start(int(1000. / 15.))
 		
@@ -111,6 +113,9 @@ class MyGui(MiniMacroFrame):
 
 	def imageCore( self, event ):
 		print("Start")
+		if(self.m_coreId.GetValue() == ""):
+			wx.MessageBox('You must specify a core name', 'Error', wx.OK | wx.ICON_WARNING)
+			return
 
 		t = threading.Thread(target=self.controller.imageCore,
 								args=(self.m_coreId.GetValue(), self.coreComplete, self.camera,), name='core-worker')

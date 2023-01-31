@@ -237,7 +237,7 @@ class MiniMacroFrame ( wx.Frame ):
 		self.halt_button.Bind( wx.EVT_LEFT_UP, self.stopAll )
 		self.preferences.Bind( wx.EVT_BUTTON, self.openPrefs )
 		self.start_core.Bind( wx.EVT_LEFT_UP, self.imageCore )
-
+		
 
 
 

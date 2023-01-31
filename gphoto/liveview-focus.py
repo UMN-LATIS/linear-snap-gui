@@ -70,7 +70,14 @@ while True:
     if key == 27:
         break
 
-
+camera_config = camera.get_config()
+                
+child = camera_config.get_child_by_name("viewfinder")
+# #to-enable:
+child.set_value(0)
+# #to-disable:
+# # child.set_value("20,1,3,14,1,60f,1,0")
+camera.set_single_config("viewfinder", child)
 
 # Release the camera resources
 camera.exit()

@@ -20,7 +20,7 @@ class miniMacroControl:
 		self.config = config
 		try:
 			self.arduino = serial.Serial(port='/dev/cu.usbmodem11201',
-								baudrate=9600, timeout=.1)
+								baudrate=115200, timeout=.1)
 		except:
 			print("No Arduino Found")
 			
@@ -32,7 +32,7 @@ class miniMacroControl:
 		print(self.write_read("R" + " " + str(rail) + " " + str(direction) + " 600"))
 
 	def moveRail(self, rail, direction, distance):
-		self.railPosition[rail] = self.railPosition[rail] + (distance * (1 if direction == 1 else -1))
+		self.railPosition[rail] = self.railPosition[rail] + (int(distance) * (1 if direction == 1 else -1))
 		data = self.write_read("M" + " " + rail + " " + str(direction) + " " + str(distance) + " 2200")
 		while(data != "POSITIONED\r\n"):
 			data = self.readData()
@@ -59,11 +59,13 @@ class miniMacroControl:
 			self.arduino.write(bytes(x + "\n", 'ASCII'))
 			time.sleep(0.05)
 			data = self.arduino.readline().decode('ASCII')
+			print(data);
 			return data
 
 	def readData(self):
 		if(self.arduino is not None):
 			data = self.arduino.readline().decode('ASCII')
+			print(data)
 			return data
 
 	def findFocus(self, camera=None):
@@ -94,7 +96,7 @@ class miniMacroControl:
 				return
 			previousFocusAverage = max(cameraAverage, previousFocusAverage)
 			focalValues = []
-			self.moveRail("S", 1, 1);
+			self.moveRail("S", 1, 2);
 
 		print("Moving to start position")
 		self.moveRail("L",0, 500 );
@@ -149,11 +151,12 @@ class miniMacroControl:
 				return
 
 			print("Starting capture for position ", self.positionCount)
-			for i in range(0, self.config.configValues["StackDepth"]):
+			for i in range(0,int(self.config.configValues["StackDepth"])):
 				print("Position ", i)
 				self.write_read("P");
 				time.sleep(0.2)
 				self.moveRail("S", 0, 1);
+				time.sleep(0.1)
 				if(self.halt):
 					return
 			if(self.halt):
@@ -161,8 +164,8 @@ class miniMacroControl:
 			
 			print("Moving to next position")
 			# could refactor this so that the rails move at the same time
-			self.moveRail("S", 1, self.config.configValues["StackDepth"])
-			self.moveRail("L", 1, self.config.configValues["Overlap"])
+			self.moveRail("S", 1, int(self.config.configValues["StackDepth"]))
+			self.moveRail("L", 1, int(self.config.configValues["Overlap"]))
 
 			time.sleep(1)
 			self.positionCount = self.positionCount + 1

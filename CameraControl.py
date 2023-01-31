@@ -79,16 +79,16 @@ class CameraControl:
         # create a new folder with a numeric title (001, 002, 003 etc)
         i = 1
         while True:
-            new_folder_path = os.path.join(new_folder_path, '{:03d}'.format(i))
-            if not os.path.exists(new_folder_path):
-                os.makedirs(new_folder_path)
+            created_folder_path = os.path.join(new_folder_path, '{:03d}'.format(i))
+            if not os.path.exists(created_folder_path):
+                os.makedirs(created_folder_path)
                 break
             i += 1
 
         # move all jpeg files into the new folder
         for jpeg in jpeg_files[:20]:
             old_path = os.path.join(temp_folder_path, jpeg)
-            new_path = os.path.join(new_folder_path, jpeg)
+            new_path = os.path.join(created_folder_path, jpeg)
             os.rename(old_path, new_path)
         print("done sorting")
 
@@ -117,7 +117,8 @@ class CameraControl:
         self.newPosition = False
 
     def waitForPhoto(self, coreId):
-        new_folder_path = os.path.join(self.config.configValues["BasePath"], self.coreId)
+        timestr = time.strftime("%Y%m%d-%H%M%S")
+        new_folder_path = os.path.join(self.config.configValues["BasePath"], coreId + "-" + timestr)
         if not os.path.exists(new_folder_path):
             os.makedirs(new_folder_path)
 
@@ -168,9 +169,12 @@ class CameraControl:
                     self.newPosition = True
             if(self.stopWaiting):
                 print("Breaking")
+                print("Cleaning up scratch")
+                os.rmdir(temp_folder_path)
                 time.sleep(2)
                 self.camera.exit()
                 break
+    
 
     def runLiveView(self):
         if(platform.system() == "Darwin"):
@@ -218,14 +222,12 @@ class CameraControl:
 
             if(self.stopLiveView):
                 time.sleep(0.1)
-                # self.camera_config = self.camera.get_config()
+                self.camera_config = self.camera.get_config()
                 
-                # child = self.camera_config.get_child_by_name("capture")
-                # #to-enable:
-                # child.set_value(0)
-                # #to-disable:
-                # # child.set_value("20,1,3,14,1,60f,1,0")
-                # self.camera.set_single_config("capture", child)
+                # alt key is "capture" on digital rebels
+                child = self.camera_config.get_child_by_name("viewfinder")
+                child.set_value(0)
+                self.camera.set_single_config("viewfinder", child)
                 self.image = None
                 self.camera.exit()
                 # self.camera.set_config(self.camera_config)
