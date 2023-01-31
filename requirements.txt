@@ -7,3 +7,4 @@ pyserial==3.5
 scipy==1.10.0
 wxPython==4.2.0
 pypubsub==4.0.3
+appdirs==1.4.4
