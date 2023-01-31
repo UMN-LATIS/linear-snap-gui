@@ -57,7 +57,7 @@ jobs:
             CMD_BUILD: >
                 pyinstaller -i icon.icns -w -n LinearSnap app.py &&
                 cd dist/ &&
-                zip -r9 LinearSnap LinearSnap.app/
+                zip -r9 LinearSnapMac LinearSnap.app/
             OUT_FILE_NAME: LinearSnapMac.zip
             ASSET_MIME: application/zip
           # - os: windows-latest
