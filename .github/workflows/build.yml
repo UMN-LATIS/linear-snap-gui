@@ -60,15 +60,15 @@ jobs:
                 zip -r9 LinearSnap LinearSnap.app/
             OUT_FILE_NAME: LinearSnapMac.zip
             ASSET_MIME: application/zip
-          - os: windows-latest
-            ARCH: x64
-            TARGET: windows
-            CMD_BUILD: > 
-              pyinstaller -i icon.icns -w -n LinearSnap app.py &&
-              cd dist/ &&
-              7z a LinearSnapWindows.zip -r *
-            OUT_FILE_NAME: LinearSnapWindows.zip
-            ASSET_MIME: application/vnd.microsoft.portable-executable
+          # - os: windows-latest
+          #   ARCH: x64
+          #   TARGET: windows
+          #   CMD_BUILD: > 
+          #     pyinstaller -i icon.icns -w -n LinearSnap app.py &&
+          #     cd dist/ &&
+          #     7z a LinearSnapWindows.zip -r *
+          #   OUT_FILE_NAME: LinearSnapWindows.zip
+          #   ASSET_MIME: application/vnd.microsoft.portable-executable
     steps:
     - run: echo ${GITHUB_REPOSITORY}
     - uses: actions/checkout@v1
@@ -102,5 +102,5 @@ jobs:
         if: github.ref == 'refs/heads/master'
         run: |
           gh api repos/${GITHUB_REPOSITORY}/releases/tags/latest | jq -r '.assets[] | [.url] | @tsv' | xargs -n 1 gh api -X DELETE || true
-          gh release upload --repo ${GITHUB_REPOSITORY} --clobber latest "LinearSnap windows-latest binary/LinearSnapWindows.zip"
+          # gh release upload --repo ${GITHUB_REPOSITORY} --clobber latest "LinearSnap windows-latest binary/LinearSnapWindows.zip"
           gh release upload --repo ${GITHUB_REPOSITORY} --clobber latest "LinearSnap macos-latest binary/LinearSnapMac.zip"
