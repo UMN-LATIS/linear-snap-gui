@@ -93,6 +93,7 @@ class miniMacroControl:
 				print("Focus found, average is ", cameraAverage)
 				break
 			if(self.halt):
+				self.camera.setLiveView(False)
 				return
 			previousFocusAverage = max(cameraAverage, previousFocusAverage)
 			focalValues = []
@@ -105,6 +106,11 @@ class miniMacroControl:
 		self.focalPosition = self.railPosition["S"]
 		print("Focal Position: ", self.focalPosition)
 		time.sleep(4)
+
+	def triggerHalt(self):
+		self.halt = True
+		while(self.arduino.in_waiting):
+			t = self.arduino.read()
 
 	def endOfCore(self, message):
 		self.halt = True
@@ -133,7 +139,9 @@ class miniMacroControl:
 		print("going to focal plane")
 		self.moveRail("S", 1, self.config.configValues["StartPosition"]);
 		
-		self.findFocus()		
+		self.findFocus()
+		if(self.halt):
+			return
 		# start camera logging
 		t = threading.Thread(target=self.camera.waitForPhoto,
 								args=(self.coreId,), name='camera-worker')

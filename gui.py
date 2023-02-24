@@ -39,7 +39,7 @@ class MyGui(MiniMacroFrame):
 	def onExitButton(self, event):
 		self.controller.stopRail("S")
 		self.controller.stopRail("L")
-		self.controller.halt = True
+		self.controller.triggerHalt()
 		self.camera.stopWaiting = True
 		self.timer.Stop()
 		quit()
@@ -70,7 +70,6 @@ class MyGui(MiniMacroFrame):
 			self.controller.runRail("S", 1)
 
 	def stopShort( self, event ):
-		print("Stop")
 		self.controller.stopRail("S")
 
 	def moveLongLeft( self, event ):
@@ -96,7 +95,7 @@ class MyGui(MiniMacroFrame):
 	def stopAll( self, event ):
 		self.controller.stopRail("S")
 		self.controller.stopRail("L")
-		self.controller.halt = True
+		self.controller.triggerHalt()
 		self.camera.setLiveView(False)
 		self.camera.stopWaiting = True
 		
