@@ -55,7 +55,8 @@ class LSConfig:
         self.configValues["VignetteMagic"] = self.Config.get("Processing", "VignetteMagic", fallback="1.1")
         self.configValues["FocusStackInstall"] = self.Config.get("FocusStack", "Install", fallback=str(homedir.absolute()))
         self.configValues["FocusStackLaunchPath"] = self.Config.get("FocusStack", "LaunchPath", fallback='"{{Install}}" --consistency=0 --align-keep-size --no-whitebalance --no-contrast --jpgquality=100 --output="{{outputPath}}" "{{folderPath}}/"*jpg')
-        self.configValues["StartPosition"] = self.Config.get("Processing", "StartPosition", fallback="600")
+        self.configValues["StartPositionBig"] = self.Config.get("Processing", "StartPositionBig", fallback="220")
+        self.configValues["StartPositionSmall"] = self.Config.get("Processing", "StartPositionSmall", fallback="470")
         self.configValues["StackDepth"] = self.Config.get("Processing", "StackDepth", fallback="20")
         self.configValues["Overlap"] = self.Config.get("Processing", "Overlap", fallback="150")
         self.configValues["captureISO"] = self.Config.get("Camera", "captureISO", fallback="100")
@@ -71,7 +72,8 @@ class LSConfig:
         self.Config.set("General", "CoreOutputPath",self.configValues["CoreOutputPath"])
 
         self.Config.set("Processing", "VignetteMagic",self.configValues["VignetteMagic"])
-        self.Config.set("Processing", "StartPosition",self.configValues["StartPosition"])
+        self.Config.set("Processing", "StartPositionBig",self.configValues["StartPositionBig"])
+        self.Config.set("Processing", "StartPositionSmall",self.configValues["StartPositionSmall"])
         self.Config.set("Processing", "StackDepth",self.configValues["StackDepth"])
         self.Config.set("Processing", "Overlap",self.configValues["Overlap"])
         

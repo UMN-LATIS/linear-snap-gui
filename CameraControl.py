@@ -8,6 +8,9 @@ import platform
 import time;
 import atexit
 from pubsub import pub
+import pathlib
+import shutil
+from multiprocessing.connection import Client
 
 if(platform.system() == "Darwin"):
     os.system("killall -9 ptpcamerad")
@@ -22,6 +25,7 @@ class CameraControl:
     stopLiveView = True
     laplacian = 0
     camera = None
+    new_folder_path = ""
 
     def __init__(self, config):
         self.config = config
@@ -98,6 +102,8 @@ class CameraControl:
     def testForBlank(self, photo):
         # Load the image
         image = cv2.imread(photo)
+        if image is None:
+            return
         # Get the image height and width
         height, width = image.shape[:2]
         # Get the center point
@@ -116,13 +122,23 @@ class CameraControl:
 
         self.newPosition = False
 
+    def notifyCoreComplete(self):
+        address = ('localhost', 6234)
+        try:
+            conn = Client(address, authkey=b'dendroFun')
+            conn.send(self.new_folder_path)
+            # conn.send(self.new_folder_path)
+            conn.close()
+        except: 
+            print("Error sending message to LinearStitch")
+
     def waitForPhoto(self, coreId):
         timestr = time.strftime("%Y%m%d-%H%M%S")
-        new_folder_path = os.path.join(self.config.configValues["BasePath"], coreId + "-" + timestr)
-        if not os.path.exists(new_folder_path):
-            os.makedirs(new_folder_path)
+        self.new_folder_path = os.path.join(self.config.configValues["BasePath"], coreId + "-" + timestr)
+        if not os.path.exists(self.new_folder_path):
+            os.makedirs(self.new_folder_path)
 
-        temp_folder_path = os.path.join(new_folder_path, "scratch")
+        temp_folder_path = os.path.join(self.new_folder_path, "scratch")
         if not os.path.exists(temp_folder_path):
             os.makedirs(temp_folder_path)
         
@@ -163,14 +179,14 @@ class CameraControl:
                 if(self.photoCount == 20):
                     print("end of position")
                     self.photoCount = 0
-                    self.sort = threading.Thread(target=self.sortPhotos, args=(temp_folder_path,new_folder_path, ), name='photo-sort')
+                    self.sort = threading.Thread(target=self.sortPhotos, args=(temp_folder_path,self.new_folder_path, ), name='photo-sort')
                     self.sort.daemon = True
                     self.sort.start()
                     self.newPosition = True
             if(self.stopWaiting):
                 print("Breaking")
                 print("Cleaning up scratch")
-                os.rmdir(temp_folder_path)
+                shutil.rmtree(pathlib.Path(temp_folder_path))
                 time.sleep(2)
                 self.camera.exit()
                 break

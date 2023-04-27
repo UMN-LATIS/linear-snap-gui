@@ -19,7 +19,6 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 
 	def CreateWindow(self, parent):
 		# THe main container window
-		
 
 		panel = wx.Panel(parent)
 		panel.SetMinSize((600, 430))
@@ -39,17 +38,6 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.m_button_base_path = wx.Button( panel, wx.ID_ANY, u"Browse", wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_button_base_path, 0, wx.ALL, 5 )
 
-		self.m_staticText2 = wx.StaticText( panel, wx.ID_ANY, u"Archive Path", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText2.Wrap( -1 )
-
-		fgSizer1.Add( self.m_staticText2, 0, wx.ALL, 5 )
-
-		self.archivePath = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.Size( -1,-1 ), 0 )
-		fgSizer1.Add( self.archivePath, 1, wx.ALL|wx.EXPAND, 5 )
-
-		self.m_button2 = wx.Button( panel, wx.ID_ANY, u"Browse", wx.DefaultPosition, wx.DefaultSize, 0 )
-		fgSizer1.Add( self.m_button2, 0, wx.ALL, 5 )
-
 		self.m_staticText3 = wx.StaticText( panel, wx.ID_ANY, u"Core Output Path", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText3.Wrap( -1 )
 
@@ -61,34 +49,24 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.m_button3 = wx.Button( panel, wx.ID_ANY, u"Browse", wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_button3, 0, wx.ALL, 5 )
 
-		self.m_staticText12 = wx.StaticText( panel, wx.ID_ANY, u"Focus Stack Path", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText12.Wrap( -1 )
-
-		fgSizer1.Add( self.m_staticText12, 0, wx.ALL, 5 )
-
-		self.focusStack = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
-		fgSizer1.Add( self.focusStack, 0, wx.ALL|wx.EXPAND, 5 )
-
-		self.m_button6 = wx.Button( panel, wx.ID_ANY, u"Browse", wx.DefaultPosition, wx.DefaultSize, 0 )
-		fgSizer1.Add( self.m_button6, 0, wx.ALL, 5 )
-
-		self.focuslabel = wx.StaticText( panel, wx.ID_ANY, u"Focus Stack Launch", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.focuslabel.Wrap( -1 )
-
-		fgSizer1.Add( self.focuslabel, 0, wx.ALL, 5 )
-
-		self.focusLaunch = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
-		fgSizer1.Add( self.focusLaunch, 0, wx.ALL|wx.EXPAND, 5 )
-
-		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
-
-		self.m_staticText121 = wx.StaticText( panel, wx.ID_ANY, u"Start Position", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText121 = wx.StaticText( panel, wx.ID_ANY, u"Start Position (big)", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText121.Wrap( -1 )
 
 		fgSizer1.Add( self.m_staticText121, 0, wx.ALL, 5 )
 
-		self.m_startPosition = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
-		fgSizer1.Add( self.m_startPosition, 0, wx.ALL|wx.EXPAND, 5 )
+		self.m_startPositionBig = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		fgSizer1.Add( self.m_startPositionBig, 0, wx.ALL|wx.EXPAND, 5 )
+
+
+		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_staticText14 = wx.StaticText( panel, wx.ID_ANY, u"Start Position (small)", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText14.Wrap( -1 )
+
+		fgSizer1.Add( self.m_staticText14, 0, wx.ALL, 5 )
+
+		self.m_startPositionSmall = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		fgSizer1.Add( self.m_startPositionSmall, 0,wx.ALL|wx.EXPAND, 5 )
 
 
 		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
@@ -115,15 +93,6 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 
 		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
-		self.m_staticText11 = wx.StaticText( panel, wx.ID_ANY, u"Vignette Magic Number", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText11.Wrap( -1 )
-		fgSizer1.Add( self.m_staticText11, 0, wx.ALL, 5 )
- 
-		self.vignetteMagic = wx.SpinCtrlDouble( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.SP_ARROW_KEYS, 0, 20, 0, 0.1 )
-		self.vignetteMagic.SetDigits( 1 )
-		fgSizer1.Add( self.vignetteMagic, 0, wx.ALL, 5 )
-		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
-
 		self.m_button7 = wx.Button( panel, wx.ID_ANY, u"Save", wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_button7, 0, wx.ALL, 5 )
 
@@ -134,9 +103,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 
 		# Connect Events
 		self.m_button_base_path.Bind( wx.EVT_BUTTON, lambda event: self.browseForDirectories(event, 'BasePath') )
-		self.m_button2.Bind( wx.EVT_BUTTON, lambda event: self.browseForDirectories(event, 'ArchivePath') )
 		self.m_button3.Bind( wx.EVT_BUTTON, lambda event: self.browseForDirectories(event, 'CoreOutputPath') )
-		self.m_button6.Bind( wx.EVT_BUTTON, lambda event: self.browseForFiles(event, 'FocusStackInstall') )
 		self.m_button7.Bind( wx.EVT_BUTTON,  self.save )
 		self.reload()
 		
@@ -146,7 +113,8 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 	def save(self, event=None):
 		self.config.configValues['VignetteMagic'] = str(self.vignetteMagic.GetValue())
 		self.config.configValues['FocusStackLaunchPath'] = self.focusLaunch.GetValue()
-		self.config.configValues['StartPosition'] = self.m_startPosition.GetValue()
+		self.config.configValues['StartPositionBig'] = self.m_startPositionSmall.GetValue()
+		self.config.configValues['StartPositionSmall'] = self.m_s.GetValue()
 		self.config.configValues['StackDepth'] = self.m_stackDepth.GetValue()
 		self.config.configValues['Overlap'] = self.m_overlap.GetValue()
 		self.config.save_config()
@@ -154,14 +122,10 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 	def reload(self, event=None):
 		
 		self.basePath.SetValue(self.config.configValues["BasePath"])
-		self.archivePath.SetValue(self.config.configValues["ArchivePath"])
-		self.corePath.SetValue(self.config.configValues["CoreOutputPath"])
-		self.vignetteMagic.SetValue(self.config.configValues["VignetteMagic"])
-		self.m_startPosition.SetValue(self.config.configValues["StartPosition"])
+		self.m_startPositionBig.SetValue(self.config.configValues["StartPositionBig"])
+		self.m_startPositionSmall.SetValue(self.config.configValues["StartPositionSmall"])
 		self.m_stackDepth.SetValue(self.config.configValues["StackDepth"])
 		self.m_overlap.SetValue(self.config.configValues["Overlap"])
-		self.focusStack.SetValue(self.config.configValues["FocusStackInstall"])
-		self.focusLaunch.SetValue(self.config.configValues["FocusStackLaunchPath"])
 
 
 	def browseForFiles( self, event, target):

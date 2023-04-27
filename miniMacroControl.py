@@ -117,7 +117,7 @@ class miniMacroControl:
 		time.sleep(0.1)
 		self.goHome()
 
-	def imageCore(self, coreId, callback, camera):
+	def imageCore(self, coreId, callback, camera, coreSize):
 		self.coreId = coreId
 		self.halt = False
 		self.camera = camera
@@ -137,7 +137,12 @@ class miniMacroControl:
 
 		# move to approximate focus position
 		print("going to focal plane")
-		self.moveRail("S", 1, self.config.configValues["StartPosition"]);
+		
+		if(coreSize == "Big"): 
+			self.moveRail("S", 1, self.config.configValues["StartPositionBig"]);
+		else:
+			self.moveRail("S", 1, self.config.configValues["StartPositionSmall"]);
+
 		
 		self.findFocus()
 		if(self.halt):

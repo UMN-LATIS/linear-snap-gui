@@ -17,8 +17,8 @@ import wx.xrc
 class MiniMacroFrame ( wx.Frame ):
 
 	def __init__( self, parent ):
-		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = wx.EmptyString, pos = wx.DefaultPosition, size = wx.Size( 1000,464 ), style = wx.DEFAULT_FRAME_STYLE|wx.TAB_TRAVERSAL )
-	
+		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = wx.EmptyString, pos = wx.DefaultPosition, size = wx.Size( 1366,710 ), style = wx.DEFAULT_FRAME_STYLE|wx.TAB_TRAVERSAL )
+
 		self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
 
 		bSizer6 = wx.BoxSizer( wx.HORIZONTAL )
@@ -65,26 +65,7 @@ class MiniMacroFrame ( wx.Frame ):
 
 		bSizer72.Add( gSizer1, 0, wx.EXPAND, 10 )
 
-
-		bSizer72.Add( ( 0, 20), 0, wx.EXPAND, 5 )
-
-		bSizer4 = wx.BoxSizer( wx.HORIZONTAL )
-
-		self.m_staticText3 = wx.StaticText( self, wx.ID_ANY, u"Core ID", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText3.Wrap( -1 )
-
-		bSizer4.Add( self.m_staticText3, 0, wx.ALL, 5 )
-
-		self.m_coreId = wx.TextCtrl( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.Size( -1,-1 ), 0 )
-		bSizer4.Add( self.m_coreId, 30, wx.EXPAND, 5 )
-
-
-		bSizer72.Add( bSizer4, 0, wx.EXPAND, 5 )
-
-
-		bSizer72.Add( ( 0, 20), 0, 0, 5 )
-
-		bSizer7 = wx.BoxSizer( wx.VERTICAL )
+		bSizer7 = wx.BoxSizer( wx.HORIZONTAL )
 
 		self.m_button18 = wx.Button( self, wx.ID_ANY, u"Home", wx.DefaultPosition, wx.DefaultSize, 0 )
 		bSizer7.Add( self.m_button18, 0, wx.ALL, 5 )
@@ -100,6 +81,43 @@ class MiniMacroFrame ( wx.Frame ):
 
 
 		bSizer72.Add( bSizer7, 0, wx.EXPAND, 5 )
+
+
+		bSizer72.Add( ( 0, 20), 0, wx.EXPAND, 5 )
+
+		bSizer4 = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.m_staticText3 = wx.StaticText( self, wx.ID_ANY, u"Core Type", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText3.Wrap( -1 )
+
+		bSizer4.Add( self.m_staticText3, 0, wx.ALL, 5 )
+
+		m_coreTypeChoices = [ u"Big", u"Small" ]
+		self.m_coreType = wx.Choice( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_coreTypeChoices, 0 )
+		self.m_coreType.SetSelection( 0 )
+		bSizer4.Add( self.m_coreType, 0, wx.ALL, 5 )
+
+
+		bSizer72.Add( bSizer4, 0, wx.EXPAND, 5 )
+
+
+		bSizer72.Add( ( 0, 20), 1, wx.EXPAND, 5 )
+
+		bSizer41 = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.m_staticText31 = wx.StaticText( self, wx.ID_ANY, u"Core ID", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText31.Wrap( -1 )
+
+		bSizer41.Add( self.m_staticText31, 0, wx.ALL, 5 )
+
+		self.m_coreId = wx.TextCtrl( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.Size( -1,-1 ), 0 )
+		bSizer41.Add( self.m_coreId, 30, wx.EXPAND, 5 )
+
+
+		bSizer72.Add( bSizer41, 1, wx.EXPAND, 5 )
+
+
+		bSizer72.Add( ( 0, 20), 0, 0, 5 )
 
 
 		bSizer5.Add( bSizer72, 1, wx.EXPAND, 5 )
@@ -237,7 +255,6 @@ class MiniMacroFrame ( wx.Frame ):
 		self.halt_button.Bind( wx.EVT_LEFT_UP, self.stopAll )
 		self.preferences.Bind( wx.EVT_BUTTON, self.openPrefs )
 		self.start_core.Bind( wx.EVT_LEFT_UP, self.imageCore )
-		
 
 
 

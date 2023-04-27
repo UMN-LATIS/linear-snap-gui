@@ -54,6 +54,7 @@ class MyGui(MiniMacroFrame):
 			timer = threading.Timer(6,lambda : self.coreCompleteText.Hide())
 			timer.start()
 			self.controller.goHome()
+			self.camera.notifyCoreComplete()
 
 	def moveShortBack(self, event):
 		print("Moving Short Back")
@@ -116,8 +117,10 @@ class MyGui(MiniMacroFrame):
 			wx.MessageBox('You must specify a core name', 'Error', wx.OK | wx.ICON_WARNING)
 			return
 
+
+
 		t = threading.Thread(target=self.controller.imageCore,
-								args=(self.m_coreId.GetValue(), self.coreComplete, self.camera,), name='core-worker')
+								args=(self.m_coreId.GetValue(), self.coreComplete, self.camera,self.m_coreType.GetString(self.m_coreType.GetCurrentSelection())), name='core-worker')
 		t.daemon = True
 		t.start()
 		# self.controller.imageCore(self.coreComplete)	
