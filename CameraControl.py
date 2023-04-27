@@ -114,7 +114,7 @@ class CameraControl:
         b, g, r, a = cv2.mean(cropped_image)
         avg_brightness = (b + g + r) / 3
         # Check if the average brightness is below a certain threshold
-        threshold = 10
+        threshold = 20
         if avg_brightness < threshold:
             print("End of core")
             self.stopWaiting = True
@@ -126,6 +126,7 @@ class CameraControl:
         address = ('localhost', 6234)
         try:
             conn = Client(address, authkey=b'dendroFun')
+            print("Broadcasting Core Complete Message")
             conn.send(self.new_folder_path)
             # conn.send(self.new_folder_path)
             conn.close()
