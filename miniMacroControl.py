@@ -68,19 +68,36 @@ class miniMacroControl:
 			print(data)
 			return data
 
+	def findInitialFocus(self, camera=None):
+		
+		print("Moving to start position")
+		self.moveRail("L",1, 500 );
+		
+		print("Moved")
+		self.findFocus(camera)
+
+		print("Moving to start position")
+		self.moveRail("L",0, 500 );
+
 	def findFocus(self, camera=None):
 		# find focus
 		if(camera):
 			self.camera = camera
 		self.camera.setLiveView(True)
+		
+		# move to approximate focus position
+		print("going to focal plane")
+		
+		if(coreSize == "Big"): 
+			self.moveRail("S", 1, self.config.configValues["StartPositionBig"]);
+		else:
+			self.moveRail("S", 1, self.config.configValues["StartPositionSmall"]);
+
+		
 		time.sleep(2)
 		previousFocusValue = 0
 		focalValues = []
 		previousFocusAverage = 0
-		print("Moving to start position")
-		self.moveRail("L",1, 500 );
-		
-		print("Moved")
 		while(True):
 			if(len(focalValues) < 6):
 				focalValues.append(self.camera.laplacian)
@@ -98,15 +115,11 @@ class miniMacroControl:
 			previousFocusAverage = max(cameraAverage, previousFocusAverage)
 			focalValues = []
 			self.moveRail("S", 1, 2);
-
-		print("Moving to start position")
-		self.moveRail("L",0, 500 );
-		
 		self.camera.setLiveView(False)
 		self.focalPosition = self.railPosition["S"]
 		print("Focal Position: ", self.focalPosition)
 		time.sleep(4)
-
+		
 	def triggerHalt(self):
 		self.halt = True
 		while(self.arduino.in_waiting):
@@ -135,16 +148,9 @@ class miniMacroControl:
 		self.railPosition["S"] = 0;
 		self.railPosition["L"] = 0;
 
-		# move to approximate focus position
-		print("going to focal plane")
-		
-		if(coreSize == "Big"): 
-			self.moveRail("S", 1, self.config.configValues["StartPositionBig"]);
-		else:
-			self.moveRail("S", 1, self.config.configValues["StartPositionSmall"]);
 
-		
-		self.findFocus()
+		self.findInitialFocus()
+
 		if(self.halt):
 			return
 		# start camera logging
@@ -182,4 +188,9 @@ class miniMacroControl:
 
 			time.sleep(1)
 			self.positionCount = self.positionCount + 1
+			
+			if(self.positionCount % self.config.configValues["Refocus"] == 0):
+				self.findFocus()
+				if(self.halt):
+					return
 		self.callback()

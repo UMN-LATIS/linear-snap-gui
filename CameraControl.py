@@ -120,7 +120,6 @@ class CameraControl:
             self.stopWaiting = True
             pub.sendMessage("coreStatus", message="end")
 
-        self.newPosition = False
 
     def notifyCoreComplete(self):
         address = ('localhost', 6234)
@@ -172,6 +171,7 @@ class CameraControl:
                 print("Image is being saved to {}".format(target_path))
                 cam_file.save(target_path)
                 if(self.newPosition):
+                    self.newPosition = False
                     print("new position")
                     self.blank = threading.Thread(target=self.testForBlank,args=(target_path,), name='test-for-blank')
                     self.blank.daemon = True

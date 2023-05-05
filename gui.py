@@ -106,7 +106,7 @@ class MyGui(MiniMacroFrame):
 
 	def findFocus(self, event):
 		print("Finding Focus")
-		t = threading.Thread(target=self.controller.findFocus,
+		t = threading.Thread(target=self.controller.findInitialFocus,
 								args=(self.camera,), name='focus-worker')
 		t.daemon = True
 		t.start()

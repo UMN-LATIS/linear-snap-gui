@@ -93,6 +93,17 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 
 		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
+		self.m_staticText11 = wx.StaticText( panel, wx.ID_ANY, u"Refocus Distance", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText11.Wrap( -1 )
+
+		fgSizer1.Add( self.m_staticText11, 0, wx.ALL, 5 )
+
+		self.m_refocus = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		fgSizer1.Add( self.m_refocus, 0, wx.ALL|wx.EXPAND, 5 )
+
+
+		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
 		self.m_button7 = wx.Button( panel, wx.ID_ANY, u"Save", wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_button7, 0, wx.ALL, 5 )
 
@@ -117,6 +128,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.config.configValues['StartPositionSmall'] = self.m_s.GetValue()
 		self.config.configValues['StackDepth'] = self.m_stackDepth.GetValue()
 		self.config.configValues['Overlap'] = self.m_overlap.GetValue()
+		self.config.configValues['Refocus'] = self.m_refocus.GetValue()
 		self.config.save_config()
 	
 	def reload(self, event=None):
@@ -126,6 +138,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.m_startPositionSmall.SetValue(self.config.configValues["StartPositionSmall"])
 		self.m_stackDepth.SetValue(self.config.configValues["StackDepth"])
 		self.m_overlap.SetValue(self.config.configValues["Overlap"])
+		self.m_refocus.SetValue(self.config.configValues["Refocus"])
 
 
 	def browseForFiles( self, event, target):

@@ -59,6 +59,7 @@ class LSConfig:
         self.configValues["StartPositionSmall"] = self.Config.get("Processing", "StartPositionSmall", fallback="470")
         self.configValues["StackDepth"] = self.Config.get("Processing", "StackDepth", fallback="20")
         self.configValues["Overlap"] = self.Config.get("Processing", "Overlap", fallback="150")
+        self.configValues["Refocus"] = self.Config.get("Processing", "Refocus", fallback="15")
         self.configValues["captureISO"] = self.Config.get("Camera", "captureISO", fallback="100")
         self.configValues["captureShutter"] = self.Config.get("Camera", "captureShutter", fallback="1/500")
         self.configValues["previewISO"] = self.Config.get("Camera", "previewISO", fallback="100")
@@ -76,6 +77,7 @@ class LSConfig:
         self.Config.set("Processing", "StartPositionSmall",self.configValues["StartPositionSmall"])
         self.Config.set("Processing", "StackDepth",self.configValues["StackDepth"])
         self.Config.set("Processing", "Overlap",self.configValues["Overlap"])
+        self.Config.set("Processing", "Refocus",self.configValues["Refocus"])
         
         self.Config.set("FocusStack", "Install",self.configValues["FocusStackInstall"])
         self.Config.set("FocusStack", "LaunchPath",self.configValues["FocusStackLaunchPath"])
