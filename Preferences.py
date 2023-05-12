@@ -122,10 +122,10 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 	
 
 	def save(self, event=None):
-		self.config.configValues['VignetteMagic'] = str(self.vignetteMagic.GetValue())
-		self.config.configValues['FocusStackLaunchPath'] = self.focusLaunch.GetValue()
-		self.config.configValues['StartPositionBig'] = self.m_startPositionSmall.GetValue()
-		self.config.configValues['StartPositionSmall'] = self.m_s.GetValue()
+		# self.config.configValues['VignetteMagic'] = str(self.vignetteMagic.GetValue())
+		# self.config.configValues['FocusStackLaunchPath'] = self.focusLaunch.GetValue()
+		self.config.configValues['StartPositionBig'] = self.m_startPositionBig.GetValue()
+		self.config.configValues['StartPositionSmall'] = self.m_startPositionSmall.GetValue()
 		self.config.configValues['StackDepth'] = self.m_stackDepth.GetValue()
 		self.config.configValues['Overlap'] = self.m_overlap.GetValue()
 		self.config.configValues['Refocus'] = self.m_refocus.GetValue()

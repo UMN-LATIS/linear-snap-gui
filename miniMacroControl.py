@@ -15,6 +15,7 @@ class miniMacroControl:
 	photoCount = 0
 	positionCount = 0
 	arduino = None
+	coreSize = "Small"
 
 	def __init__(self, config):
 		self.config = config
@@ -87,8 +88,8 @@ class miniMacroControl:
 		
 		# move to approximate focus position
 		print("going to focal plane")
-		
-		if(coreSize == "Big"): 
+
+		if(self.coreSize == "Big"): 
 			self.moveRail("S", 1, self.config.configValues["StartPositionBig"]);
 		else:
 			self.moveRail("S", 1, self.config.configValues["StartPositionSmall"]);
@@ -134,6 +135,7 @@ class miniMacroControl:
 		self.coreId = coreId
 		self.halt = False
 		self.camera = camera
+		self.coreSize = coreSize
 		print("Starting ", self.coreId)
 
 		self.callback = callback;
@@ -189,7 +191,8 @@ class miniMacroControl:
 			time.sleep(1)
 			self.positionCount = self.positionCount + 1
 			
-			if(self.positionCount % self.config.configValues["Refocus"] == 0):
+			if(self.positionCount % int(self.config.configValues["Refocus"]) == 0):
+				time.sleep(5)
 				self.findFocus()
 				if(self.halt):
 					return
