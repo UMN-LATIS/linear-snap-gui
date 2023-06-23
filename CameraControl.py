@@ -177,7 +177,7 @@ class CameraControl:
                     self.blank.daemon = True
                     self.blank.start()
                 self.photoCount = self.photoCount + 1
-                if(self.photoCount == 20):
+                if(self.photoCount == int(self.config.configValues["StackDepth"])):
                     print("end of position")
                     self.photoCount = 0
                     self.sort = threading.Thread(target=self.sortPhotos, args=(temp_folder_path,self.new_folder_path, ), name='photo-sort')

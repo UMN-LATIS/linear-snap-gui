@@ -56,9 +56,9 @@ def main():
     child.set_value("100")
     camera.set_single_config("iso", child)
 
-    child = camera_config.get_child_by_name("shutterspeed")
-    child.set_value("1/500")
-    camera.set_single_config("shutterspeed", child)
+    # child = camera_config.get_child_by_name("shutterspeed")
+    # child.set_value("1/500")
+    # camera.set_single_config("shutterspeed", child)
     while True:
         event_type, event_data = camera.wait_for_event(timeout)
         if event_type == gp.GP_EVENT_FILE_ADDED:

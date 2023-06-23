@@ -175,7 +175,7 @@ class miniMacroControl:
 			for i in range(0,int(self.config.configValues["StackDepth"])):
 				print("Position ", i)
 				self.write_read("P");
-				time.sleep(0.2)
+				time.sleep(0.1)
 				self.moveRail("S", 0, 1);
 				time.sleep(0.1)
 				if(self.halt):
@@ -191,9 +191,11 @@ class miniMacroControl:
 			time.sleep(1)
 			self.positionCount = self.positionCount + 1
 			
-			if(self.positionCount % int(self.config.configValues["Refocus"]) == 0):
-				time.sleep(5)
-				self.findFocus()
-				if(self.halt):
-					return
+			# if(self.positionCount % int(self.config.configValues["Refocus"]) == 0):
+			# 	self.camera.stopWaiting = True
+			# 	time.sleep(5)
+			# 	self.findFocus()
+			# 	t.start()
+			# 	if(self.halt):
+			# 		return
 		self.callback()
