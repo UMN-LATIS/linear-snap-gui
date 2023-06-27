@@ -90,11 +90,16 @@ class CameraControl:
             i += 1
 
         # move all jpeg files into the new folder
-        for jpeg in jpeg_files[:20]:
+        stackDepth = int(self.config.configValues["StackDepth"])
+        for jpeg in jpeg_files[:stackDepth]:
             old_path = os.path.join(temp_folder_path, jpeg)
             new_path = os.path.join(created_folder_path, jpeg)
             os.rename(old_path, new_path)
         print("done sorting")
+
+        print("display the middle image")
+        self.image = cv2.imread(os.path.join(created_folder_path,jpeg_files[stackDepth / 2]))
+
 
 
 
