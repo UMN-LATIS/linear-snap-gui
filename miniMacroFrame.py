@@ -94,7 +94,6 @@ class MiniMacroFrame ( wx.Frame ):
 
 		m_coreTypeChoices = [ u"Big", u"Small" ]
 		self.m_coreType = wx.Choice( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_coreTypeChoices, 0 )
-		self.m_coreType.SetSelection( 0 )
 		bSizer4.Add( self.m_coreType, 0, wx.ALL, 5 )
 
 
@@ -242,6 +241,8 @@ class MiniMacroFrame ( wx.Frame ):
 		self.Centre( wx.BOTH )
 
 		# Connect Events
+		self.m_coreType.SetSelection( int(self.config.configValues['CoreType'] ))
+
 		self.m_button5.Bind( wx.EVT_LEFT_DOWN, self.moveShortBack )
 		self.m_button5.Bind( wx.EVT_LEFT_UP, self.stopShort )
 		self.m_button3.Bind( wx.EVT_LEFT_DOWN, self.moveLongLeft )
@@ -255,11 +256,17 @@ class MiniMacroFrame ( wx.Frame ):
 		self.halt_button.Bind( wx.EVT_LEFT_UP, self.stopAll )
 		self.preferences.Bind( wx.EVT_BUTTON, self.openPrefs )
 		self.start_core.Bind( wx.EVT_LEFT_UP, self.imageCore )
+		
+		self.m_coreType.Bind( wx.EVT_CHOICE, self.changeCoreType )
 
 
 
 	def __del__( self ):
 		pass
+
+	def changeCoreType( self, event ):
+		event.Skip()
+
 
 	def onExitButton(self, event):
 		event.Skip()

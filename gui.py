@@ -157,3 +157,8 @@ class MyGui(MiniMacroFrame):
 	def openPrefs( self, event ):
 		self.prefs = PreferencesEditor(self.config)
 		self.prefs.Show(self)
+
+
+	def changeCoreType( self, event ):
+		self.config.configValues['CoreType'] = str(self.m_coreType.GetCurrentSelection())
+		self.config.save_config()

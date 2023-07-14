@@ -28,6 +28,7 @@ class miniMacroControl:
 		pub.subscribe(self.endOfCore, "coreStatus")
 
 
+
 	def runRail(self, rail, direction):
 		self.railPosition[rail] = sys.maxsize
 		print(self.write_read("R" + " " + str(rail) + " " + str(direction) + " 600"))
