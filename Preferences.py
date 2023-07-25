@@ -1,5 +1,5 @@
 import wx;
-
+import glob;
 from PyQt5.QtWidgets import (QFileDialog, QDialog, QListView, QAbstractItemView, QTreeView)
 
 class PreferencesEditor(wx.PreferencesEditor):
@@ -22,6 +22,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 
 		panel = wx.Panel(parent)
 		panel.SetMinSize((600, 430))
+		
 		fgSizer1 = wx.FlexGridSizer( 0, 3, 0, 0 )
 		fgSizer1.AddGrowableCol( 1 )
 		fgSizer1.SetFlexibleDirection( wx.BOTH )
@@ -66,7 +67,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		fgSizer1.Add( self.m_staticText14, 0, wx.ALL, 5 )
 
 		self.m_startPositionSmall = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
-		fgSizer1.Add( self.m_startPositionSmall, 0,wx.ALL|wx.EXPAND, 5 )
+		fgSizer1.Add( self.m_startPositionSmall, 0, wx.ALL|wx.EXPAND, 5 )
 
 
 		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
@@ -104,6 +105,19 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 
 		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
+		self.m_staticText12 = wx.StaticText( panel, wx.ID_ANY, u"Serial Port", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText12.Wrap( -1 )
+
+		fgSizer1.Add( self.m_staticText12, 0, wx.ALL, 5 )
+
+		m_serialPortChoices = glob.glob('/dev/tty.*')
+		self.m_serialPort = wx.Choice( panel, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_serialPortChoices, 0 )
+		self.m_serialPort.SetSelection( 0 )
+		fgSizer1.Add( self.m_serialPort, 0, wx.ALL|wx.EXPAND, 5 )
+
+
+		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
 		self.m_button7 = wx.Button( panel, wx.ID_ANY, u"Save", wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer1.Add( self.m_button7, 0, wx.ALL, 5 )
 
@@ -129,6 +143,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.config.configValues['StackDepth'] = self.m_stackDepth.GetValue()
 		self.config.configValues['Overlap'] = self.m_overlap.GetValue()
 		self.config.configValues['Refocus'] = self.m_refocus.GetValue()
+		self.config.configValues['SerialPort'] = self.m_serialPort.GetString(self.m_serialPort.GetSelection())
 		self.config.save_config()
 	
 	def reload(self, event=None):
@@ -139,6 +154,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.m_stackDepth.SetValue(self.config.configValues["StackDepth"])
 		self.m_overlap.SetValue(self.config.configValues["Overlap"])
 		self.m_refocus.SetValue(self.config.configValues["Refocus"])
+		self.m_serialPort.SetSelection(self.m_serialPort.FindString(self.config.configValues["SerialPort"]))
 
 
 	def browseForFiles( self, event, target):

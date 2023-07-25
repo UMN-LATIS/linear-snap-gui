@@ -65,6 +65,7 @@ class LSConfig:
         self.configValues["previewISO"] = self.Config.get("Camera", "previewISO", fallback="100")
         self.configValues["previewShutter"] = self.Config.get("Camera", "previewShutter", fallback="1/15")
         self.configValues["CoreType"] = self.Config.get("General", "CoreType", fallback="0")
+        self.configValues["SerialPort"] = self.Config.get("General", "SerialPort", fallback="")
             
     def save_config(self):
 
@@ -73,6 +74,7 @@ class LSConfig:
         self.Config.set("General", "ArchivePath", self.configValues["ArchivePath"])
         self.Config.set("General", "CoreOutputPath",self.configValues["CoreOutputPath"])
         self.Config.set("General", "CoreType",self.configValues["CoreType"])
+        self.Config.set("General", "SerialPort",self.configValues["SerialPort"])
 
         # self.Config.set("Processing", "VignetteMagic",self.configValues["VignetteMagic"])
         self.Config.set("Processing", "StartPositionBig",self.configValues["StartPositionBig"])

@@ -20,7 +20,7 @@ class miniMacroControl:
 	def __init__(self, config):
 		self.config = config
 		try:
-			self.arduino = serial.Serial(port='/dev/cu.usbmodem11201',
+			self.arduino = serial.Serial(port=self.config.configValues["SerialPort"],
 								baudrate=115200, timeout=.1)
 		except:
 			print("No Arduino Found")
