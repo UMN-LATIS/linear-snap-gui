@@ -98,7 +98,7 @@ class CameraControl:
         print("done sorting")
 
         print("display the middle image")
-        self.image = cv2.imread(os.path.join(created_folder_path,jpeg_files[stackDepth / 2]))
+        self.image = cv2.imread(os.path.join(created_folder_path,jpeg_files[round(stackDepth / 2)]))
 
 
 

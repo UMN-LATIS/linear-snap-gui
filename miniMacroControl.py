@@ -90,7 +90,7 @@ class miniMacroControl:
 		# move to approximate focus position
 		print("going to focal plane")
 
-		if(self.coreSize == "Big"): 
+		if(self.coreSize == "Tall"): 
 			self.moveRail("S", 1, self.config.configValues["StartPositionBig"]);
 		else:
 			self.moveRail("S", 1, self.config.configValues["StartPositionSmall"]);

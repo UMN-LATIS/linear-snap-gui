@@ -16,7 +16,7 @@ class MyApp(wx.App):
 		return True
 
 qapp = QApplication(sys.argv)
-app = MyApp(False)
+app = MyApp(True)
 app.MainLoop()
 
 

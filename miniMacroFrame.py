@@ -92,7 +92,7 @@ class MiniMacroFrame ( wx.Frame ):
 
 		bSizer4.Add( self.m_staticText3, 0, wx.ALL, 5 )
 
-		m_coreTypeChoices = [ u"Big", u"Small" ]
+		m_coreTypeChoices = [ u"Tall", u"Short" ]
 		self.m_coreType = wx.Choice( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_coreTypeChoices, 0 )
 		bSizer4.Add( self.m_coreType, 0, wx.ALL, 5 )
 
