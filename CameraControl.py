@@ -160,6 +160,15 @@ class CameraControl:
         child = self.camera_config.get_child_by_name("shutterspeed")
         child.set_value(self.config.configValues["captureShutter"])
         self.camera.set_single_config("shutterspeed", child)
+
+        child = self.camera_config.get_child_by_name("whitebalance")
+        child.set_value("Color Temperature")
+        self.camera.set_single_config("whitebalance", child)
+
+        child = self.camera_config.get_child_by_name("colortemperature")
+        child.set_value(self.config.configValues["colorTemperature"])
+        self.camera.set_single_config("colortemperature", child)
+
         self.photoCount = 0;
         print("Waiting for Photos")
         self.coreId = coreId
@@ -212,6 +221,15 @@ class CameraControl:
         child = self.camera_config.get_child_by_name("shutterspeed")
         child.set_value(self.config.configValues["previewShutter"])
         self.camera.set_single_config("shutterspeed", child)
+
+        child = self.camera_config.get_child_by_name("whitebalance")
+        child.set_value("Color Temperature")
+        self.camera.set_single_config("whitebalance", child)
+
+        child = self.camera_config.get_child_by_name("colortemperature")
+        child.set_value(self.config.configValues["colorTemperature"])
+        self.camera.set_single_config("colortemperature", child)
+
         while True:
             # Get the preview frame
             data = self.camera.capture_preview()

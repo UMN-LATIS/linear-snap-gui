@@ -64,6 +64,7 @@ class LSConfig:
         self.configValues["captureShutter"] = self.Config.get("Camera", "captureShutter", fallback="1/500")
         self.configValues["previewISO"] = self.Config.get("Camera", "previewISO", fallback="100")
         self.configValues["previewShutter"] = self.Config.get("Camera", "previewShutter", fallback="1/15")
+        self.configValues["colorTemperature"] = self.Config.get("Camera", "colorTemperature", fallback="5600")
         self.configValues["CoreType"] = self.Config.get("General", "CoreType", fallback="0")
         self.configValues["SerialPort"] = self.Config.get("General", "SerialPort", fallback="")
             
@@ -90,6 +91,7 @@ class LSConfig:
         self.Config.set("Camera", "captureShutter",self.configValues["captureShutter"])
         self.Config.set("Camera", "previewISO",self.configValues["previewISO"])
         self.Config.set("Camera", "previewShutter",self.configValues["previewShutter"])
+        self.Config.set("Camera", "colorTemperature",self.configValues["colorTemperature"])
         
         with open(self.configfile, "w") as f:
             self.Config.write(f)

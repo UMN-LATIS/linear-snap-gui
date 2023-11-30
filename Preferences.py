@@ -236,6 +236,15 @@ class CameraPrefs (wx.StockPreferencesPage):
 		fgSizer2.Add( self.m_captureShutter, 0, wx.ALL|wx.EXPAND, 5 )
 
 
+		self.m_staticText13 = wx.StaticText( panel, wx.ID_ANY, u"Color Temperature", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText13.Wrap( -1 )
+
+		fgSizer2.Add( self.m_staticText13, 0, wx.ALL, 5 )
+
+		self.m_colorTemperature = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		fgSizer2.Add( self.m_colorTemperature, 0, wx.ALL|wx.EXPAND, 5 )
+
+
 		self.m_button7 = wx.Button( panel, wx.ID_ANY, u"Save", wx.DefaultPosition, wx.DefaultSize, 0 )
 		fgSizer2.Add( self.m_button7, 0, wx.ALL, 5 )
 
@@ -253,6 +262,7 @@ class CameraPrefs (wx.StockPreferencesPage):
 	def save(self, event=None):
 		self.config.configValues['captureISO'] = self.m_captureISO.GetValue()
 		self.config.configValues['captureShutter'] = self.m_captureShutter.GetValue()
+		self.config.configValues['colorTemperature'] = self.m_colorTemperature.GetValue()
 		self.config.configValues['previewISO'] = self.m_previewISO.GetValue()
 		self.config.configValues['previewShutter'] = self.m_previewShutter.GetValue()
 		self.config.save_config()
@@ -261,6 +271,7 @@ class CameraPrefs (wx.StockPreferencesPage):
 		
 		self.m_captureISO.SetValue(self.config.configValues["captureISO"])
 		self.m_captureShutter.SetValue(self.config.configValues["captureShutter"])
+		self.m_colorTemperature.SetValue(self.config.configValues["colorTemperature"])
 		self.m_previewISO.SetValue(self.config.configValues["previewISO"])
 		self.m_previewShutter.SetValue(self.config.configValues["previewShutter"])
 
