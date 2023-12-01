@@ -1,5 +1,5 @@
 pyinstaller>=5.12
-gphoto2==2.5.0
+gphoto2==2.3.6
 numpy==1.26.2
 opencv_contrib_python==4.6.0.66
 PyQt5==5.15.10
