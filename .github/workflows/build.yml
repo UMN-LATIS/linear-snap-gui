@@ -52,7 +52,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-13-xlarge
             TARGET: macos
             CMD_BUILD: >
                 pyinstaller -i icon.icns -w -n LinearSnap app.py &&
