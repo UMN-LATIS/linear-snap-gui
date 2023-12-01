@@ -1,4 +1,4 @@
-pyinstaller==5.6.2
+pyinstaller>=5.12
 gphoto2==2.5.0
 numpy==1.26.2
 opencv_contrib_python==4.6.0.66
