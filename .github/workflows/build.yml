@@ -72,6 +72,7 @@ jobs:
     steps:
     - run: echo ${GITHUB_REPOSITORY}
     - uses: actions/checkout@v1
+    - run: brew install libgphoto2
     - name: Set up Python 3.11
       uses: actions/setup-python@v4
       with:
