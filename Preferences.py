@@ -149,6 +149,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 	def reload(self, event=None):
 		
 		self.basePath.SetValue(self.config.configValues["BasePath"])
+		self.corePath.SetValue(self.config.configValues["CoreOutputPath"])
 		self.m_startPositionBig.SetValue(self.config.configValues["StartPositionBig"])
 		self.m_startPositionSmall.SetValue(self.config.configValues["StartPositionSmall"])
 		self.m_stackDepth.SetValue(self.config.configValues["StackDepth"])
