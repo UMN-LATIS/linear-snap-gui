@@ -137,21 +137,17 @@ class CameraControl:
         except: 
             print("Error sending message to LinearStitch")
 
-    def waitForPhoto(self, coreId):
+    def prepForCore(self, coreId):
+        self.coreId = coreId
         timestr = time.strftime("%Y%m%d-%H%M%S")
         self.new_folder_path = os.path.join(self.config.configValues["BasePath"], coreId + "-" + timestr)
         if not os.path.exists(self.new_folder_path):
             os.makedirs(self.new_folder_path)
 
-        temp_folder_path = os.path.join(self.new_folder_path, "scratch")
-        if not os.path.exists(temp_folder_path):
-            os.makedirs(temp_folder_path)
-        
-
-
         if(platform.system() == "Darwin"):
             os.system("killall -9 ptpcamerad")
         self.camera.init()
+
         self.camera_config = self.camera.get_config()
         child = self.camera_config.get_child_by_name("iso")
         child.set_value(self.config.configValues["captureISO"])
@@ -169,9 +165,18 @@ class CameraControl:
         child.set_value(self.config.configValues["colorTemperature"])
         self.camera.set_single_config("colortemperature", child)
 
+
+
+    def waitForPhoto(self, coreId):
+        print("Starting waitForPhoto thread")
+        
+        temp_folder_path = os.path.join(self.new_folder_path, "scratch")
+        if not os.path.exists(temp_folder_path):
+            os.makedirs(temp_folder_path)
+        
         self.photoCount = 0;
         print("Waiting for Photos")
-        self.coreId = coreId
+        
         self.newPosition = True
         self.stopWaiting = False
         timeout = 3000  # milliseconds
@@ -204,6 +209,7 @@ class CameraControl:
                 shutil.rmtree(pathlib.Path(temp_folder_path))
                 time.sleep(2)
                 self.camera.exit()
+                print("Exited camera")
                 break
     
 
@@ -211,6 +217,7 @@ class CameraControl:
         if(platform.system() == "Darwin"):
             os.system("killall -9 ptpcamerad")
         self.camera.init()
+        print("Init LiveView")
         self.camera_config = self.camera.get_config()
 
         
