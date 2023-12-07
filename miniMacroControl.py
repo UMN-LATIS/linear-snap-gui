@@ -163,7 +163,7 @@ class miniMacroControl:
 		t.start()
 		time.sleep(2)
 		print("Moving to start position")
-		self.moveRail("S",1, 10 );
+		self.moveRail("S",1, round(int(self.config.configValues["StackDepth"]) / 2) );
 		
 		time.sleep(1)
 		self.positionCount = 0;
@@ -192,11 +192,13 @@ class miniMacroControl:
 			time.sleep(1)
 			self.positionCount = self.positionCount + 1
 			
-			# if(self.positionCount % int(self.config.configValues["Refocus"]) == 0):
-			# 	self.camera.stopWaiting = True
-			# 	time.sleep(5)
-			# 	self.findFocus()
-			# 	t.start()
-			# 	if(self.halt):
-			# 		return
+			if(self.positionCount % int(self.config.configValues["Refocus"]) == 0):
+				self.camera.stopWaiting = True
+				time.sleep(3)
+				self.moveRail("S", 0, self.railPosition["S"])
+				self.findFocus()
+				self.moveRail("S",1, round(int(self.config.configValues["StackDepth"]) / 2) );
+				t.start()
+				if(self.halt):
+					return
 		self.callback()
