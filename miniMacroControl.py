@@ -194,7 +194,7 @@ class miniMacroControl:
 			time.sleep(1)
 			self.positionCount = self.positionCount + 1
 			
-			if(self.positionCount % int(self.config.configValues["Refocus"]) == 0):
+			if(self.positionCount % int(self.config.configValues["Refocus"]) == 0 or self.camera.requiresRefocus):
 				self.camera.stopWaiting = True
 				time.sleep(3)
 				self.moveRail("S", 0, self.railPosition["S"])

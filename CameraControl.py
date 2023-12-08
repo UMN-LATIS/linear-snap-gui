@@ -26,6 +26,7 @@ class CameraControl:
     laplacian = 0
     camera = None
     new_folder_path = ""
+    requiresRefocus = False
 
     def __init__(self, config):
         self.config = config
@@ -100,7 +101,21 @@ class CameraControl:
         print("display the middle image")
         self.image = cv2.imread(os.path.join(created_folder_path,jpeg_files[round(stackDepth / 2)]))
 
+        # get the filesize of each photo
+        file_sizes = []
+        for jpeg in jpeg_files[:stackDepth]:
+            file_sizes.append(os.path.getsize(os.path.join(created_folder_path, jpeg)))
+        
+        # check if the biggest size is within 3 positions of the start or the end of the list
+        biggest_size = max(file_sizes)
+        biggest_size_index = file_sizes.index(biggest_size)
+        if biggest_size_index < 3 or biggest_size_index > len(file_sizes) - 3:
+            self.requiresRefocus = True
 
+        # check if the biggest size is less than 10% bigger than the smallest size
+        smallest_size = min(file_sizes)
+        if biggest_size < smallest_size * 1.1:
+            self.requiresRefocus = True
 
 
 
