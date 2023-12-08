@@ -199,8 +199,8 @@ class miniMacroControl:
 				time.sleep(3)
 				self.moveRail("S", 0, self.railPosition["S"])
 				self.findFocus()
-				self.moveRail("S",1, round(int(self.config.configValues["StackDepth"]) / 2) );
-
+				self.moveRail("S",1, round(int(self.config.configValues["StackDepth"]) / 2) )
+				self.camera.requiresRefocus = False
 				t = threading.Thread(target=self.camera.waitForPhoto,
 					args=(self.coreId,), name='camera-worker')
 				t.daemon = True
