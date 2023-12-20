@@ -100,15 +100,21 @@ class miniMacroControl:
 		previousFocusValue = 0
 		focalValues = []
 		previousFocusAverage = 0
+		focusFound = False
 		while(True):
 			if(len(focalValues) < 6):
 				focalValues.append(self.camera.laplacian)
 				time.sleep(0.08)
 				continue;
 
+			if(self.camera.likelyBlank):
+				print("Blank image, stopping")
+				break
+
 			cameraAverage = sum(focalValues) / len(focalValues)
 			print("Average: ", cameraAverage, " Previous: ", previousFocusAverage)
 			if(round(cameraAverage) - round(previousFocusAverage) < -1):
+				focusFound = True
 				print("Focus found, average is ", cameraAverage)
 				break
 			if(self.halt):
@@ -118,8 +124,9 @@ class miniMacroControl:
 			focalValues = []
 			self.moveRail("S", 1, 2);
 		self.camera.setLiveView(False)
-		self.focalPosition = self.railPosition["S"]
-		print("Focal Position: ", self.focalPosition)
+		if(focusFound):
+			self.focalPosition = self.railPosition["S"]
+			print("Focal Position: ", self.focalPosition)
 		time.sleep(4)
 		
 	def triggerHalt(self):

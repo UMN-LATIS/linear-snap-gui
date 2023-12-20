@@ -24,6 +24,7 @@ class CameraControl:
     stopWaiting = False
     stopLiveView = True
     laplacian = 0
+    likelyBlank = False
     camera = None
     new_folder_path = ""
     requiresRefocus = False
@@ -274,6 +275,15 @@ class CameraControl:
             laplacian = cv2.Laplacian(gray, cv2.CV_64F)
             variance = laplacian.var()
             self.laplacian = variance
+
+            # check if the center of the image is black and set a flag
+            b, g, r, a = cv2.mean(middle_square)
+            avg_brightness = (b + g + r) / 3
+            # Check if the average brightness is below a certain threshold
+            threshold = 20
+            if avg_brightness < threshold:
+                self.likelyBlank = True
+
 
             # Display the frame in a window
             self.image = img
