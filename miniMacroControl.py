@@ -125,6 +125,8 @@ class miniMacroControl:
 			self.moveRail("S", 1, 2);
 		self.camera.setLiveView(False)
 		if(focusFound):
+			#back out one step since we're too far in by the time we find focus
+			self.moveRail("S", 0, 2);
 			self.focalPosition = self.railPosition["S"]
 			print("Focal Position: ", self.focalPosition)
 		time.sleep(4)
