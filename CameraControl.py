@@ -179,13 +179,13 @@ class CameraControl:
         child.set_value(self.config.configValues["captureShutter"])
         self.camera.set_single_config("shutterspeed", child)
 
-        # child = self.camera_config.get_child_by_name("whitebalance")
-        # child.set_value("Color Temperature")
-        # self.camera.set_single_config("whitebalance", child)
+        child = self.camera_config.get_child_by_name("whitebalance")
+        child.set_value("Color Temperature")
+        self.camera.set_single_config("whitebalance", child)
 
-        # child = self.camera_config.get_child_by_name("colortemperature")
-        # child.set_value(self.config.configValues["colorTemperature"])
-        # self.camera.set_single_config("colortemperature", child)
+        child = self.camera_config.get_child_by_name("colortemperature")
+        child.set_value(self.config.configValues["colorTemperature"])
+        self.camera.set_single_config("colortemperature", child)
 
 
 
@@ -252,11 +252,11 @@ class CameraControl:
         self.camera.set_single_config("shutterspeed", child)
 
         child = self.camera_config.get_child_by_name("whitebalance")
-        child.set_value("Choose Color Temperature")
+        child.set_value("Color Temperature")
         self.camera.set_single_config("whitebalance", child)
 
         child = self.camera_config.get_child_by_name("colortemperature")
-        child.set_value(float(self.config.configValues["colorTemperature"]))
+        child.set_value(self.config.configValues["colorTemperature"])
         self.camera.set_single_config("colortemperature", child)
 
         while True:
@@ -302,9 +302,9 @@ class CameraControl:
                 self.camera_config = self.camera.get_config()
                 
                 # alt key is "capture" on digital rebels
-                # child = self.camera_config.get_child_by_name("viewfinder")
-                # child.set_value(0)
-                # self.camera.set_single_config("viewfinder", child)
+                child = self.camera_config.get_child_by_name("viewfinder")
+                child.set_value(0)
+                self.camera.set_single_config("viewfinder", child)
                 self.image = None
                 self.camera.exit()
                 # self.camera.set_config(self.camera_config)
