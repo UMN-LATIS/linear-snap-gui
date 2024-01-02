@@ -44,6 +44,12 @@ class CameraControl:
         self.timeout = 3000  # milliseconds
         atexit.register(self.cleanup)
     
+    def reset(self):
+        self.photoCount = 0
+        self.laplacian = 0
+        self.likelyBlank = False
+        self.requiresRefocus = False
+
     def setCoreId(self, coreId):
         self.coreId = coreId
 
@@ -173,13 +179,13 @@ class CameraControl:
         child.set_value(self.config.configValues["captureShutter"])
         self.camera.set_single_config("shutterspeed", child)
 
-        child = self.camera_config.get_child_by_name("whitebalance")
-        child.set_value("Color Temperature")
-        self.camera.set_single_config("whitebalance", child)
+        # child = self.camera_config.get_child_by_name("whitebalance")
+        # child.set_value("Color Temperature")
+        # self.camera.set_single_config("whitebalance", child)
 
-        child = self.camera_config.get_child_by_name("colortemperature")
-        child.set_value(self.config.configValues["colorTemperature"])
-        self.camera.set_single_config("colortemperature", child)
+        # child = self.camera_config.get_child_by_name("colortemperature")
+        # child.set_value(self.config.configValues["colorTemperature"])
+        # self.camera.set_single_config("colortemperature", child)
 
 
 
@@ -246,11 +252,11 @@ class CameraControl:
         self.camera.set_single_config("shutterspeed", child)
 
         child = self.camera_config.get_child_by_name("whitebalance")
-        child.set_value("Color Temperature")
+        child.set_value("Choose Color Temperature")
         self.camera.set_single_config("whitebalance", child)
 
         child = self.camera_config.get_child_by_name("colortemperature")
-        child.set_value(self.config.configValues["colorTemperature"])
+        child.set_value(float(self.config.configValues["colorTemperature"]))
         self.camera.set_single_config("colortemperature", child)
 
         while True:
@@ -280,10 +286,9 @@ class CameraControl:
             b, g, r, a = cv2.mean(middle_square)
             avg_brightness = (b + g + r) / 3
             # Check if the average brightness is below a certain threshold
-            threshold = 20
+            threshold = 40
             if avg_brightness < threshold:
                 self.likelyBlank = True
-
 
             # Display the frame in a window
             self.image = img
@@ -297,9 +302,9 @@ class CameraControl:
                 self.camera_config = self.camera.get_config()
                 
                 # alt key is "capture" on digital rebels
-                child = self.camera_config.get_child_by_name("viewfinder")
-                child.set_value(0)
-                self.camera.set_single_config("viewfinder", child)
+                # child = self.camera_config.get_child_by_name("viewfinder")
+                # child.set_value(0)
+                # self.camera.set_single_config("viewfinder", child)
                 self.image = None
                 self.camera.exit()
                 # self.camera.set_config(self.camera_config)

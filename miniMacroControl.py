@@ -140,9 +140,15 @@ class miniMacroControl:
 		self.goHome()
 
 	def imageCore(self, coreId, callback, camera, coreSize):
+		
+		self.positionCount = 0
+		self.photoCount = 0
+		self.railPosition = {"S": 0, "L": 0}
+		
 		self.coreId = coreId
 		self.halt = False
 		self.camera = camera
+		self.camera.reset()
 		self.coreSize = coreSize
 		print("Starting ", self.coreId)
 
