@@ -50,7 +50,7 @@ class MyGui(MiniMacroFrame):
 			self.Layout()
 
 			# need to run on main thread
-			wx.CallAfter(self.m_coreId.SetValue, "")
+			# wx.CallAfter(self.m_coreId.SetValue, "")
 			timer = threading.Timer(6,lambda : self.coreCompleteText.Hide())
 			timer.start()
 			self.controller.goHome()
