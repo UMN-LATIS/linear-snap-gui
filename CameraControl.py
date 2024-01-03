@@ -259,6 +259,7 @@ class CameraControl:
         child.set_value(self.config.configValues["colorTemperature"])
         self.camera.set_single_config("colortemperature", child)
 
+        frameCount = 0
         while True:
             # Get the preview frame
             data = self.camera.capture_preview()
@@ -277,18 +278,22 @@ class CameraControl:
             # Convert the frame to grayscale
             gray = cv2.cvtColor(middle_square, cv2.COLOR_BGR2GRAY)
 
-            # Calculate the Laplacian of the frame
-            laplacian = cv2.Laplacian(gray, cv2.CV_64F)
-            variance = laplacian.var()
-            self.laplacian = variance
 
-            # check if the center of the image is black and set a flag
-            b, g, r, a = cv2.mean(middle_square)
-            avg_brightness = (b + g + r) / 3
-            # Check if the average brightness is below a certain threshold
-            threshold = 40
-            if avg_brightness < threshold:
-                self.likelyBlank = True
+            # wait until we've had 5 frames to start doing math, in case the buffer has old frames
+            if(frameCount > 5):
+                # Calculate the Laplacian of the frame
+                laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+                variance = laplacian.var()
+                self.laplacian = variance
+
+                # check if the center of the image is black and set a flag
+                b, g, r, a = cv2.mean(middle_square)
+                avg_brightness = (b + g + r) / 3
+                # Check if the average brightness is below a certain threshold
+                threshold = 40
+                if avg_brightness < threshold:
+                    self.likelyBlank = True
+            
 
             # Display the frame in a window
             self.image = img
@@ -310,4 +315,5 @@ class CameraControl:
                 # self.camera.set_config(self.camera_config)
                 break
 
+            frameCount = frameCount + 1
 

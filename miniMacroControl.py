@@ -139,7 +139,7 @@ class miniMacroControl:
 	def endOfCore(self, message):
 		self.halt = True
 		time.sleep(0.1)
-		self.goHome()
+		# self.goHome()
 
 	def imageCore(self, coreId, callback, camera, coreSize):
 		
