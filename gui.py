@@ -53,8 +53,8 @@ class MyGui(MiniMacroFrame):
 			# wx.CallAfter(self.m_coreId.SetValue, "")
 			timer = threading.Timer(6,lambda : self.coreCompleteText.Hide())
 			timer.start()
-			self.controller.moveRail("S", 1, 30);
-			
+			self.controller.moveRail("S", 1, 50);
+			time.sleep(1)
 			self.controller.goHome()
 			print("Core Complete")
 			self.camera.notifyCoreComplete()
