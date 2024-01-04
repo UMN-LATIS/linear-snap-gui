@@ -54,10 +54,10 @@ class MyGui(MiniMacroFrame):
 			timer = threading.Timer(6,lambda : self.coreCompleteText.Hide())
 			timer.start()
 			self.controller.moveRail("S", 1, 50);
-			time.sleep(1)
-			self.controller.goHome()
 			print("Core Complete")
 			self.camera.notifyCoreComplete()
+			time.sleep(3)
+			self.controller.goHome()
 
 	def moveShortBack(self, event):
 		print("Moving Short Back")
