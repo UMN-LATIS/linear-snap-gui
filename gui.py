@@ -2,24 +2,24 @@ import wx
 # import serial
 import time
 import threading
-from miniMacroFrame import MiniMacroFrame
-from miniMacroControl import miniMacroControl
+from LinearSnapFrame import LinearSnapFrame
+from LinearSnapControl import LinearSnapControl
 from CameraControl import CameraControl
 import cv2
 from pubsub import pub
 from config import LSConfig;
 from Preferences import PreferencesEditor;
 
-class MyGui(MiniMacroFrame):
+class MyGui(LinearSnapFrame):
 	
 	
 	app = wx.App(0)
 	
 	def __init__(self, parent):
 		self.config = LSConfig()
-		self.controller =  miniMacroControl(self.config);
+		self.controller =  LinearSnapControl(self.config);
 		self.camera = CameraControl(self.config);
-		MiniMacroFrame.__init__(self, parent)
+		LinearSnapFrame.__init__(self, parent)
 		
 		self.m_EnableLiveView.Bind( wx.EVT_CHECKBOX, self.liveView )
 		self.timer = wx.Timer(self)

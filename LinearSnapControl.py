@@ -6,7 +6,7 @@ import serial;
 import time
 from pubsub import pub
 
-class miniMacroControl:
+class LinearSnapControl:
 
 	callback = None;
 	halt = False;
