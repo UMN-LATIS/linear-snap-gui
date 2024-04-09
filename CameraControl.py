@@ -29,6 +29,7 @@ class CameraControl:
     new_folder_path = ""
     requiresRefocus = False
 
+
     def __init__(self, config):
         self.config = config
         if(platform.system() == "Darwin"):
@@ -117,6 +118,7 @@ class CameraControl:
         biggest_size = max(file_sizes)
         biggest_size_index = file_sizes.index(biggest_size)
         if biggest_size_index < 3 or biggest_size_index > len(file_sizes) - 3:
+            print("Biggest size is within 3 positions of the start or the end of the list")
             self.requiresRefocus = True
 
         # check if the biggest size is less than 10% bigger than the smallest size
@@ -169,23 +171,7 @@ class CameraControl:
         if(platform.system() == "Darwin"):
             os.system("killall -9 ptpcamerad")
         self.camera.init()
-
-        self.camera_config = self.camera.get_config()
-        child = self.camera_config.get_child_by_name("iso")
-        child.set_value(self.config.configValues["captureISO"])
-        self.camera.set_single_config("iso", child)
-
-        child = self.camera_config.get_child_by_name("shutterspeed")
-        child.set_value(self.config.configValues["captureShutter"])
-        self.camera.set_single_config("shutterspeed", child)
-
-        child = self.camera_config.get_child_by_name("whitebalance")
-        child.set_value("Color Temperature")
-        self.camera.set_single_config("whitebalance", child)
-
-        child = self.camera_config.get_child_by_name("colortemperature")
-        child.set_value(self.config.configValues["colorTemperature"])
-        self.camera.set_single_config("colortemperature", child)
+        self.setupCamera(self.config.configValues["captureISO"]);
 
 
 
@@ -235,30 +221,50 @@ class CameraControl:
                 break
     
 
+    def setupCamera(self, isoValue): 
+        self.camera_config = self.camera.get_config()
+
+        if(self.config.configValues["cameraModel"] == "Canon R8"):
+            child = self.camera_config.get_child_by_name("iso")
+            child.set_value(isoValue)
+            self.camera.set_single_config("iso", child)
+            child = self.camera_config.get_child_by_name("shutterspeed")
+            child.set_value(self.config.configValues["previewShutter"])
+            self.camera.set_single_config("shutterspeed", child)
+
+            child = self.camera_config.get_child_by_name("whitebalance")
+            child.set_value("Color Temperature")
+            self.camera.set_single_config("whitebalance", child)
+
+            child = self.camera_config.get_child_by_name("colortemperature")
+            child.set_value(self.config.configValues["colorTemperature"])
+            self.camera.set_single_config("colortemperature", child)
+        elif(self.config.configValues["cameraModel"] == "Sony ILX-LR1"):
+            child = self.camera_config.get_child_by_name("iso")
+            child.set_value(isoValue)
+            self.camera.set_single_config("iso", child)
+            child = self.camera_config.get_child_by_name("shutterspeed")
+            child.set_value(self.config.configValues["previewShutter"])
+            self.camera.set_single_config("shutterspeed", child)
+
+            child = self.camera_config.get_child_by_name("whitebalance")
+            child.set_value("Choose Color Temperature")
+            self.camera.set_single_config("whitebalance", child)
+
+            child = self.camera_config.get_child_by_name("colortemperature")
+            child.set_value(float(self.config.configValues["colorTemperature"]))
+            self.camera.set_single_config("colortemperature", child)
+
+
+
+
     def runLiveView(self):
         if(platform.system() == "Darwin"):
             os.system("killall -9 ptpcamerad")
         self.camera.init()
         print("Init LiveView")
-        self.camera_config = self.camera.get_config()
 
-        
-        child = self.camera_config.get_child_by_name("iso")
-        child.set_value(self.config.configValues["previewISO"])
-        self.camera.set_single_config("iso", child)
-
-        child = self.camera_config.get_child_by_name("shutterspeed")
-        child.set_value(self.config.configValues["previewShutter"])
-        self.camera.set_single_config("shutterspeed", child)
-
-        child = self.camera_config.get_child_by_name("whitebalance")
-        child.set_value("Color Temperature")
-        self.camera.set_single_config("whitebalance", child)
-
-        child = self.camera_config.get_child_by_name("colortemperature")
-        child.set_value(self.config.configValues["colorTemperature"])
-        self.camera.set_single_config("colortemperature", child)
-
+        self.setupCamera(self.config.configValues["previewISO"]);
         frameCount = 0
         while True:
             # Get the preview frame
@@ -307,9 +313,10 @@ class CameraControl:
                 self.camera_config = self.camera.get_config()
                 
                 # alt key is "capture" on digital rebels
-                child = self.camera_config.get_child_by_name("viewfinder")
-                child.set_value(0)
-                self.camera.set_single_config("viewfinder", child)
+                if(self.config.configValues["cameraModel"] == "Canon R8"):
+                    child = self.camera_config.get_child_by_name("viewfinder")
+                    child.set_value(0)
+                    self.camera.set_single_config("viewfinder", child)
                 self.image = None
                 self.camera.exit()
                 # self.camera.set_config(self.camera_config)

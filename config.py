@@ -67,6 +67,7 @@ class LSConfig:
         self.configValues["colorTemperature"] = self.Config.get("Camera", "colorTemperature", fallback="5600")
         self.configValues["CoreType"] = self.Config.get("General", "CoreType", fallback="0")
         self.configValues["SerialPort"] = self.Config.get("General", "SerialPort", fallback="")
+        self.configValues["cameraModel"] = self.Config.get("Camera", "Model", fallback="Canon R8")
             
     def save_config(self):
 
@@ -92,6 +93,7 @@ class LSConfig:
         self.Config.set("Camera", "previewISO",self.configValues["previewISO"])
         self.Config.set("Camera", "previewShutter",self.configValues["previewShutter"])
         self.Config.set("Camera", "colorTemperature",self.configValues["colorTemperature"])
+        self.Config.set("Camera", "Model",self.configValues["cameraModel"])
         
         with open(self.configfile, "w") as f:
             self.Config.write(f)

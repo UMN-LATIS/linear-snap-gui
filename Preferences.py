@@ -203,6 +203,16 @@ class CameraPrefs (wx.StockPreferencesPage):
 		fgSizer2.AddGrowableCol( 1 )
 		fgSizer2.SetFlexibleDirection( wx.BOTH )
 		fgSizer2.SetNonFlexibleGrowMode( wx.FLEX_GROWMODE_SPECIFIED )
+		
+		self.m_staticText13 = wx.StaticText( panel, wx.ID_ANY, u"Camera Model", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText13.Wrap( -1 )
+
+		fgSizer2.Add( self.m_staticText13, 0, wx.ALL, 5 )
+
+		m_cameraModelChoices = [ u"Canon R8", u"Sony ILX-LR1" ]
+		self.m_cameraModel = wx.Choice( panel, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_cameraModelChoices, 0 )
+		self.m_cameraModel.SetSelection( 0 )
+		fgSizer2.Add( self.m_cameraModel, 0, wx.ALL, 5 )
 
 		self.m_staticText9 = wx.StaticText( panel, wx.ID_ANY, u"Preview ISO", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText9.Wrap( -1 )
@@ -261,6 +271,7 @@ class CameraPrefs (wx.StockPreferencesPage):
 
 
 	def save(self, event=None):
+		self.config.configValues['cameraModel'] = self.m_cameraModel.GetString(self.m_cameraModel.GetSelection())
 		self.config.configValues['captureISO'] = self.m_captureISO.GetValue()
 		self.config.configValues['captureShutter'] = self.m_captureShutter.GetValue()
 		self.config.configValues['colorTemperature'] = self.m_colorTemperature.GetValue()
@@ -269,7 +280,7 @@ class CameraPrefs (wx.StockPreferencesPage):
 		self.config.save_config()
 	
 	def reload(self, event=None):
-		
+		self.m_cameraModel.SetSelection(self.m_cameraModel.FindString(self.config.configValues["cameraModel"]))
 		self.m_captureISO.SetValue(self.config.configValues["captureISO"])
 		self.m_captureShutter.SetValue(self.config.configValues["captureShutter"])
 		self.m_colorTemperature.SetValue(self.config.configValues["colorTemperature"])

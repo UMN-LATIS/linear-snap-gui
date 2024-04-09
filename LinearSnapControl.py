@@ -193,7 +193,7 @@ class LinearSnapControl:
 			for i in range(0,int(self.config.configValues["StackDepth"])):
 				print("Position ", i)
 				self.write_read("P");
-				time.sleep(0.1)
+				time.sleep(0.2)
 				self.moveRail("S", 0, 1);
 				time.sleep(0.1)
 				if(self.halt):
@@ -210,6 +210,7 @@ class LinearSnapControl:
 			self.positionCount = self.positionCount + 1
 			
 			if(self.positionCount % int(self.config.configValues["Refocus"]) == 0 or self.camera.requiresRefocus):
+				print("Refocusing")
 				self.camera.stopWaiting = True
 				time.sleep(3)
 				self.moveRail("S", 0, self.railPosition["S"])
