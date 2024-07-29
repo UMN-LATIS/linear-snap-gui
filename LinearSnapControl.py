@@ -139,12 +139,14 @@ class LinearSnapControl:
 		
 	def triggerHalt(self):
 		self.halt = True
+		self.toggleLight(False)
 		while(self.arduino.in_waiting):
 			t = self.arduino.read()
 
 	def endOfCore(self, message):
 		self.halt = True
 		time.sleep(0.1)
+		self.toggleLight(False)
 		# self.goHome()
 
 	def imageCore(self, coreId, callback, camera, coreSize):
@@ -229,5 +231,5 @@ class LinearSnapControl:
 				t.start()
 				if(self.halt):
 					return
-		self.toggleLight(False)
+		
 		self.callback()
