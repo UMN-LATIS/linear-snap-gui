@@ -55,6 +55,12 @@ class LinearSnapControl:
 				return
 			time.sleep(0.1)
 
+	def toggleLight(self, light):
+		if(light):
+			self.write_read("L1")
+		else:
+			self.write_read("L0")
+
 	def write_read(self, x):
 		if(self.arduino is not None):
 			self.arduino.reset_input_buffer()
@@ -142,7 +148,7 @@ class LinearSnapControl:
 		# self.goHome()
 
 	def imageCore(self, coreId, callback, camera, coreSize):
-		
+		self.toggleLight(True)
 		self.positionCount = 0
 		self.photoCount = 0
 		self.railPosition = {"S": 0, "L": 0}
@@ -223,4 +229,5 @@ class LinearSnapControl:
 				t.start()
 				if(self.halt):
 					return
+		self.toggleLight(False)
 		self.callback()

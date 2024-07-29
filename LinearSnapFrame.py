@@ -79,6 +79,8 @@ class LinearSnapFrame ( wx.Frame ):
 		self.m_EnableLiveView = wx.CheckBox( self, wx.ID_ANY, u"Live View", wx.DefaultPosition, wx.DefaultSize, 0 )
 		bSizer7.Add( self.m_EnableLiveView, 0, wx.ALL, 5 )
 
+		self.m_toggleLight = wx.CheckBox( self, wx.ID_ANY, u"Light", wx.DefaultPosition, wx.DefaultSize, 0 )
+		bSizer7.Add( self.m_toggleLight, 0, wx.ALL, 5 )
 
 		bSizer72.Add( bSizer7, 0, wx.EXPAND, 5 )
 

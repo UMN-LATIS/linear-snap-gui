@@ -22,6 +22,7 @@ class MyGui(LinearSnapFrame):
 		LinearSnapFrame.__init__(self, parent)
 		
 		self.m_EnableLiveView.Bind( wx.EVT_CHECKBOX, self.liveView )
+		self.m_toggleLight.Bind( wx.EVT_CHECKBOX, self.light )
 		self.timer = wx.Timer(self)
 		self.timer.Start(int(1000. / 15.))
 		
@@ -130,6 +131,9 @@ class MyGui(LinearSnapFrame):
 
 	def liveView(self, event):
 		self.camera.setLiveView(self.m_EnableLiveView.GetValue())
+
+	def light(self, event):
+		self.controller.toggleLight(self.m_toggleLight.GetValue())
 
 	def OnPaint(self, event):
 		self.m_ShortRail.SetLabel(str(self.controller.railPosition["S"]))
