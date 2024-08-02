@@ -28,6 +28,7 @@ class CameraControl:
     camera = None
     new_folder_path = ""
     requiresRefocus = False
+    stackCenter = None
 
 
     def __init__(self, config):
@@ -117,6 +118,7 @@ class CameraControl:
         # check if the biggest size is within 3 positions of the start or the end of the list
         biggest_size = max(file_sizes)
         biggest_size_index = file_sizes.index(biggest_size)
+        self.stackCenter = biggest_size_index
         if biggest_size_index < 3 or biggest_size_index > len(file_sizes) - 3:
             print("Biggest size is within 3 positions of the start or the end of the list")
             self.requiresRefocus = True

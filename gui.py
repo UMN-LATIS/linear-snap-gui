@@ -80,16 +80,16 @@ class MyGui(LinearSnapFrame):
 	def moveLongLeft( self, event ):
 		print("Moving Long Left")
 		if(self.m_SlowMoves.GetValue() == True):
-			self.controller.moveRail("L", 1, 1);
+			self.controller.moveRail("L", 0, 1);
 		else:
-			self.controller.runRail("L", 1)
+			self.controller.runRail("L", 0)
 
 	def moveLongRight( self, event ):
 		print("Moving Long Right")
 		if(self.m_SlowMoves.GetValue() == True):
-			self.controller.moveRail("L", 0, 1);	
+			self.controller.moveRail("L", 1, 1);	
 		else:
-			self.controller.runRail("L", 0)
+			self.controller.runRail("L", 1)
 
 	def stopLong( self, event ):
 		self.controller.stopRail("L")
