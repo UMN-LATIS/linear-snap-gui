@@ -216,9 +216,9 @@ class LinearSnapControl:
 
 			# look at the most recent sorted stack and try to ride the focus a bit.
 			if(self.camera.stackCenter < round(int(self.config.configValues["StackDepth"])) / 2):
-				self.moveRail("S", 0, 2)
-			else:
 				self.moveRail("S", 1, 2)
+			else:
+				self.moveRail("S", 0, 2)
 
 			time.sleep(1)
 			self.positionCount = self.positionCount + 1
