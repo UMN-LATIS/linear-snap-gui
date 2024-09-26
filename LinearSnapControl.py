@@ -226,7 +226,7 @@ class LinearSnapControl:
 			if(self.positionCount % int(self.config.configValues["Refocus"]) == 0 or self.camera.requiresRefocus):
 				print("Refocusing")
 				self.camera.stopWaiting = True
-				time.sleep(3)
+				time.sleep(5)
 				self.moveRail("S", 0, self.railPosition["S"])
 				self.findFocus()
 				self.moveRail("S",1, round(int(self.config.configValues["StackDepth"]) / 2) )
