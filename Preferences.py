@@ -104,6 +104,16 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 
 
 		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+		
+		self.m_staticText11 = wx.StaticText( panel, wx.ID_ANY, u"Max Focus Steps", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText11.Wrap( -1 )
+
+		fgSizer1.Add( self.m_staticText11, 0, wx.ALL, 5 )
+
+		self.m_maxFocus = wx.TextCtrl( panel, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		fgSizer1.Add( self.m_maxFocus, 0, wx.ALL|wx.EXPAND, 5 )
+
+		fgSizer1.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
 		self.m_staticText12 = wx.StaticText( panel, wx.ID_ANY, u"Serial Port", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText12.Wrap( -1 )
@@ -143,6 +153,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.config.configValues['StackDepth'] = self.m_stackDepth.GetValue()
 		self.config.configValues['Overlap'] = self.m_overlap.GetValue()
 		self.config.configValues['Refocus'] = self.m_refocus.GetValue()
+		self.config.configValues['MaxFocus'] = self.m_maxFocus.GetValue()
 		self.config.configValues['SerialPort'] = self.m_serialPort.GetString(self.m_serialPort.GetSelection())
 		self.config.save_config()
 	
@@ -154,7 +165,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.m_startPositionSmall.SetValue(self.config.configValues["StartPositionSmall"])
 		self.m_stackDepth.SetValue(self.config.configValues["StackDepth"])
 		self.m_overlap.SetValue(self.config.configValues["Overlap"])
-		self.m_refocus.SetValue(self.config.configValues["Refocus"])
+		self.m_maxFocus.SetValue(self.config.configValues["MaxFocus"])
 		self.m_serialPort.SetSelection(self.m_serialPort.FindString(self.config.configValues["SerialPort"]))
 
 

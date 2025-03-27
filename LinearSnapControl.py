@@ -107,6 +107,11 @@ class LinearSnapControl:
 		focalValues = []
 		previousFocusAverage = 0
 		focusFound = False
+		stepCount = 0;
+		maxStepCount = 10000;
+		if(int(self.config.configValues["MaxFocus"])):
+			maxStepCount = int(self.config.configValues["MaxFocus"])
+
 		while(True):
 			if(len(focalValues) < 6):
 				focalValues.append(self.camera.laplacian)
@@ -129,12 +134,18 @@ class LinearSnapControl:
 			previousFocusAverage = max(cameraAverage, previousFocusAverage)
 			focalValues = []
 			self.moveRail("S", 1, 2);
+			stepCount = stepCount + 1
+			if(stepCount > maxStepCount):
+				print("Max steps reached")
+				break
 		self.camera.setLiveView(False)
 		if(focusFound):
 			#back out one step since we're too far in by the time we find focus
 			self.moveRail("S", 0, 2);
 			self.focalPosition = self.railPosition["S"]
 			print("Focal Position: ", self.focalPosition)
+		else:
+			self.endOfCore()
 		time.sleep(4)
 		
 	def triggerHalt(self):
