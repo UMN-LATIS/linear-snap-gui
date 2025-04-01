@@ -145,7 +145,7 @@ class LinearSnapControl:
 			self.focalPosition = self.railPosition["S"]
 			print("Focal Position: ", self.focalPosition)
 		else:
-			self.endOfCore()
+			self.endOfCore("focusFailed")
 		time.sleep(4)
 		
 	def triggerHalt(self):
