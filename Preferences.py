@@ -165,6 +165,7 @@ class GeneralPreferencesPage(wx.StockPreferencesPage):
 		self.m_startPositionSmall.SetValue(self.config.configValues["StartPositionSmall"])
 		self.m_stackDepth.SetValue(self.config.configValues["StackDepth"])
 		self.m_overlap.SetValue(self.config.configValues["Overlap"])
+		self.m_refocus.SetValue(self.config.configValues["Refocus"])
 		self.m_maxFocus.SetValue(self.config.configValues["MaxFocus"])
 		self.m_serialPort.SetSelection(self.m_serialPort.FindString(self.config.configValues["SerialPort"]))
 
