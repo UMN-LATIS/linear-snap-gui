@@ -56,6 +56,7 @@ class MyGui(LinearSnapFrame):
 			timer.start()
 			self.controller.moveRail("S", 1, 50);
 			print("Core Complete")
+			self.camera.stopWaiting = True # stop waiting for images
 			self.camera.notifyCoreComplete()
 			time.sleep(3)
 			self.controller.goHome()
