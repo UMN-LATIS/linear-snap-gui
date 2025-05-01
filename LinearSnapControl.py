@@ -242,11 +242,12 @@ class LinearSnapControl:
 				self.findFocus()
 				self.moveRail("S",1, round(int(self.config.configValues["StackDepth"]) / 2) )
 				self.camera.requiresRefocus = False
+				if(self.halt):
+					return
 				t = threading.Thread(target=self.camera.waitForPhoto,
 					args=(self.coreId,), name='camera-worker')
 				t.daemon = True
 				t.start()
-				if(self.halt):
-					return
+				
 		
 		self.callback()
