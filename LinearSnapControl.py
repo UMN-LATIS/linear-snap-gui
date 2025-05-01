@@ -144,9 +144,9 @@ class LinearSnapControl:
 			self.moveRail("S", 0, 2);
 			self.focalPosition = self.railPosition["S"]
 			print("Focal Position: ", self.focalPosition)
+			time.sleep(4)
 		else:
 			pub.sendMessage("coreStatus", message="end")
-		time.sleep(4)
 		
 	def triggerHalt(self):
 		self.halt = True
@@ -240,6 +240,8 @@ class LinearSnapControl:
 				time.sleep(5)
 				self.moveRail("S", 0, self.railPosition["S"])
 				self.findFocus()
+				if(self.halt):
+					return
 				self.moveRail("S",1, round(int(self.config.configValues["StackDepth"]) / 2) )
 				self.camera.requiresRefocus = False
 				if(self.halt):
