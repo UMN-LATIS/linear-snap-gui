@@ -21,12 +21,11 @@ elif _system == 'Windows':
     _binaries.append((os.path.join(_dll_dir, 'EdsImage.dll'), '.'))
 
 a = Analysis(
-    ['app.py'],
+    ['standalone_camera_app.py'],
     pathex=[],
     binaries=_binaries,
     datas=[],
     hiddenimports=[],
-    # edsdk.py is in the root; PyInstaller picks it up automatically
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -40,7 +39,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='LinearSnap',
+    name='StandaloneCamera',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -60,12 +59,13 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='LinearSnap',
+    name='StandaloneCamera',
 )
+
 if _system == 'Darwin':
     app = BUNDLE(
         coll,
-        name='LinearSnap.app',
+        name='StandaloneCamera.app',
         icon='icon.icns',
         bundle_identifier=None,
     )

@@ -63,8 +63,11 @@ class LSConfig:
         self.configValues["MaxFocus"] = self.Config.get("Processing", "MaxFocus", fallback="15")
         self.configValues["captureISO"] = self.Config.get("Camera", "captureISO", fallback="100")
         self.configValues["captureShutter"] = self.Config.get("Camera", "captureShutter", fallback="1/500")
+        self.configValues["captureFStop"] = self.Config.get("Camera", "captureFStop", fallback="5.6")
+        self.configValues["captureWhiteBalance"] = self.Config.get("Camera", "captureWhiteBalance", fallback="Auto")
         self.configValues["previewISO"] = self.Config.get("Camera", "previewISO", fallback="100")
         self.configValues["previewShutter"] = self.Config.get("Camera", "previewShutter", fallback="1/15")
+        self.configValues["previewFStop"] = self.Config.get("Camera", "previewFStop", fallback="5.6")
         self.configValues["colorTemperature"] = self.Config.get("Camera", "colorTemperature", fallback="5600")
         self.configValues["CoreType"] = self.Config.get("General", "CoreType", fallback="0")
         self.configValues["SerialPort"] = self.Config.get("General", "SerialPort", fallback="")
@@ -92,8 +95,11 @@ class LSConfig:
         
         self.Config.set("Camera", "captureISO",self.configValues["captureISO"])
         self.Config.set("Camera", "captureShutter",self.configValues["captureShutter"])
+        self.Config.set("Camera", "captureFStop",self.configValues["captureFStop"])
+        self.Config.set("Camera", "captureWhiteBalance",self.configValues["captureWhiteBalance"])
         self.Config.set("Camera", "previewISO",self.configValues["previewISO"])
         self.Config.set("Camera", "previewShutter",self.configValues["previewShutter"])
+        self.Config.set("Camera", "previewFStop",self.configValues["previewFStop"])
         self.Config.set("Camera", "colorTemperature",self.configValues["colorTemperature"])
         self.Config.set("Camera", "Model",self.configValues["cameraModel"])
         

@@ -290,6 +290,160 @@ class CameraControl:
         except (ValueError, TypeError) as exc:
             print(f"setupCamera: bad colorTemperature: {exc}")
 
+    def _set_u32_property(self, prop_id, enum_value, label: str):
+        if self.camera is None:
+            raise RuntimeError("Camera not initialized")
+
+        # If the camera reports a property description, only write supported values.
+        try:
+            desc = eds.EdsPropertyDesc()
+            err = eds.EdsGetPropertyDesc(self.camera, prop_id, ctypes.byref(desc))
+            if err == 0 and desc.numElements > 0:
+                supported = {int(desc.propDesc[i]) for i in range(desc.numElements)}
+                if int(enum_value) not in supported:
+                    raise ValueError(f"{label}: value not supported by current camera mode")
+        except ValueError:
+            raise
+        except Exception:
+            # Some bodies/modes do not expose property desc reliably; fall back to direct write.
+            pass
+
+        val = eds.EdsUInt32(enum_value)
+        eds.check(
+            eds.EdsSetPropertyData(
+                self.camera, prop_id, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+            ),
+            label,
+        )
+
+    def set_iso(self, iso_value: str):
+        iso_enum = eds.ISO_MAP.get(str(iso_value))
+        if iso_enum is None:
+            raise ValueError(f"Unsupported ISO value: {iso_value}")
+        self._set_u32_property(eds.kEdsPropID_ISOSpeed, iso_enum, "set ISO")
+
+    def set_shutter(self, shutter_value: str):
+        tv_enum = eds.TV_MAP.get(str(shutter_value))
+        if tv_enum is None:
+            raise ValueError(f"Unsupported shutter value: {shutter_value}")
+        self._set_u32_property(eds.kEdsPropID_Tv, tv_enum, "set shutter")
+
+    def set_aperture(self, fstop_value: str):
+        av_enum = eds.AV_MAP.get(str(fstop_value))
+        if av_enum is None:
+            raise ValueError(f"Unsupported F-stop value: {fstop_value}")
+        self._set_u32_property(eds.kEdsPropID_Av, av_enum, "set aperture")
+
+    def set_white_balance(self, wb_value: str):
+        wb_enum = eds.WB_MAP.get(str(wb_value))
+        if wb_enum is None:
+            raise ValueError(f"Unsupported white balance value: {wb_value}")
+        self._set_u32_property(eds.kEdsPropID_WhiteBalance, wb_enum, "set white balance")
+
+    def _get_supported_prop_labels(self, prop_id: int, value_map: dict):
+        if self.camera is None:
+            return []
+
+        reverse = {int(v): str(k) for k, v in value_map.items()}
+        desc = eds.EdsPropertyDesc()
+        err = eds.EdsGetPropertyDesc(self.camera, prop_id, ctypes.byref(desc))
+        if err != 0 or desc.numElements <= 0:
+            return []
+
+        labels = []
+        for i in range(desc.numElements):
+            raw = int(desc.propDesc[i])
+            label = reverse.get(raw)
+            if label is not None:
+                labels.append(label)
+        return labels
+
+    def get_supported_setting_labels(self):
+        return {
+            "iso": self._get_supported_prop_labels(eds.kEdsPropID_ISOSpeed, eds.ISO_MAP),
+            "shutter": self._get_supported_prop_labels(eds.kEdsPropID_Tv, eds.TV_MAP),
+            "aperture": self._get_supported_prop_labels(eds.kEdsPropID_Av, eds.AV_MAP),
+            "white_balance": self._get_supported_prop_labels(eds.kEdsPropID_WhiteBalance, eds.WB_MAP),
+        }
+
+    def apply_exposure_settings(self, iso_value: str, shutter_value: str, fstop_value: str, wb_value: str = None):
+        was_liveview_on = not self.stopLiveView
+        if was_liveview_on:
+            self.setLiveView(False)
+            time.sleep(0.25)
+
+        try:
+            self.set_iso(iso_value)
+            self.set_shutter(shutter_value)
+            self.set_aperture(fstop_value)
+            if wb_value is not None:
+                self.set_white_balance(wb_value)
+        finally:
+            if was_liveview_on:
+                # Resume liveview after applying properties.
+                self.setLiveView(True)
+
+    def prepare_host_download(self):
+        if self.camera is None:
+            raise RuntimeError("Camera not initialized")
+        self._set_u32_property(eds.kEdsPropID_SaveTo, eds.kEdsSaveTo_Host, "set SaveTo Host")
+
+        capacity = eds.EdsCapacity()
+        capacity.numberOfFreeClusters = 0x7FFFFFFF
+        capacity.bytesPerSector = 512
+        capacity.reset = True
+        eds.check(eds.EdsSetCapacity(self.camera, capacity), "EdsSetCapacity")
+
+    def _download_dir_item_to(self, dir_item, output_dir: str):
+        item_info = eds.EdsDirectoryItemInfo()
+        eds.check(
+            eds.EdsGetDirectoryItemInfo(dir_item, ctypes.byref(item_info)),
+            "EdsGetDirectoryItemInfo",
+        )
+
+        filename = item_info.szFileName.decode("utf-8", errors="replace")
+        os.makedirs(output_dir, exist_ok=True)
+        target_path = os.path.join(output_dir, filename)
+
+        stream_ref = eds.EdsStreamRef()
+        try:
+            eds.check(
+                eds.EdsCreateFileStream(
+                    target_path.encode("utf-8"),
+                    eds.kEdsFileCreateDisposition_CreateAlways,
+                    eds.kEdsAccess_ReadWrite,
+                    ctypes.byref(stream_ref),
+                ),
+                "EdsCreateFileStream",
+            )
+            eds.check(eds.EdsDownload(dir_item, item_info.size, stream_ref), "EdsDownload")
+            eds.check(eds.EdsDownloadComplete(dir_item), "EdsDownloadComplete")
+        finally:
+            if stream_ref.value:
+                eds.EdsRelease(stream_ref)
+
+        return target_path
+
+    def download_next_photo(self, output_dir: str, timeout_s: float = 0.5):
+        if self.camera is None:
+            raise RuntimeError("Camera not initialized")
+
+        signalled = self._transfer_event.wait(timeout=timeout_s)
+        if not signalled:
+            return None
+
+        self._transfer_event.clear()
+        dir_item = self._pending_dir_item
+        self._pending_dir_item = None
+        if dir_item is None:
+            return None
+
+        try:
+            return self._download_dir_item_to(dir_item, output_dir)
+        finally:
+            eds.EdsRelease(dir_item)
+
     def _setupCaptureSettings(self):
         if self.camera is None:
             return

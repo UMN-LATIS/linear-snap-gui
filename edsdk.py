@@ -1,36 +1,62 @@
 """
 Canon EDSDK ctypes wrapper for Python.
 
-Loads EDSDK.framework from the local canonSDK directory (or the PyInstaller
+Loads EDSDK from the local canon-sdk repository checkout (or the PyInstaller
 bundle when frozen) and exposes the C API together with the constants and
 value-lookup tables needed by CameraControl.py.
 """
 
 import ctypes
-import ctypes.util
 import os
+import platform
 import sys
 
 # ---------------------------------------------------------------------------
 # Framework path resolution
 # ---------------------------------------------------------------------------
 
-def _find_framework() -> str:
-    """Return the absolute path to the EDSDK dylib."""
-    if getattr(sys, "frozen", False):
-        # PyInstaller bundle: framework binary is copied next to the executable
-        base = sys._MEIPASS
-        return os.path.join(base, "EDSDK.framework", "Versions", "A", "EDSDK")
+def _find_edsdk_binary() -> str:
+    """Return the absolute path to the EDSDK shared library for this platform."""
+    system = platform.system()
 
-    # Development: relative to this file
+    if getattr(sys, "frozen", False):
+        base = sys._MEIPASS
+        if system == "Darwin":
+            return os.path.join(base, "EDSDK.framework", "Versions", "A", "EDSDK")
+        if system == "Windows":
+            return os.path.join(base, "EDSDK.dll")
+        raise RuntimeError(f"Unsupported platform for EDSDK: {system}")
+
     here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(
-        here,
-        "canonSDK", "EDSDK", "Framework", "EDSDK.framework", "EDSDK",
+    if system == "Darwin":
+        candidates = [
+            os.path.join(here, "canon-sdk", "mac", "EDSDK", "Framework", "EDSDK.framework", "Versions", "A", "EDSDK"),
+            os.path.join(here, "canonSDK", "EDSDK", "Framework", "EDSDK.framework", "Versions", "A", "EDSDK"),
+            os.path.join(here, "canonSDK", "EDSDK", "Framework", "EDSDK.framework", "EDSDK"),
+        ]
+    elif system == "Windows":
+        candidates = [
+            os.path.join(here, "canon-sdk", "windows", "EDSDK_64", "Dll", "EDSDK.dll"),
+            os.path.join(here, "canon-sdk", "windows", "EDSDK", "Dll", "EDSDK.dll"),
+        ]
+    else:
+        raise RuntimeError(f"Unsupported platform for EDSDK: {system}")
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    raise FileNotFoundError(
+        "EDSDK library not found. Expected under canon-sdk/ (or legacy canonSDK/)."
     )
 
 
-_lib = ctypes.CDLL(_find_framework())
+_edsdk_path = _find_edsdk_binary()
+if platform.system() == "Windows":
+    # Ensure EdsImage.dll can be resolved when loading EDSDK.dll.
+    os.add_dll_directory(os.path.dirname(_edsdk_path))
+
+_lib = ctypes.CDLL(_edsdk_path)
 
 # ---------------------------------------------------------------------------
 # Primitive types
@@ -300,6 +326,44 @@ TV_MAP = {
 }
 
 # ---------------------------------------------------------------------------
+# Aperture (Av / F-number) string -> EDSDK enum value
+# ---------------------------------------------------------------------------
+
+AV_MAP = {
+    "1.0": 0x08,
+    "1.1": 0x0B,
+    "1.2": 0x0C,
+    "1.4": 0x10,
+    "1.6": 0x13,
+    "1.8": 0x14,
+    "2.0": 0x18,
+    "2.2": 0x1B,
+    "2.5": 0x1C,
+    "2.8": 0x20,
+    "3.2": 0x23,
+    "3.5": 0x24,
+    "4.0": 0x28,
+    "4.5": 0x2B,
+    "5.0": 0x2C,
+    "5.6": 0x30,
+    "6.3": 0x33,
+    "7.1": 0x35,
+    "8.0": 0x38,
+    "9.0": 0x3B,
+    "10": 0x3C,
+    "11": 0x40,
+    "13": 0x43,
+    "14": 0x45,
+    "16": 0x48,
+    "18": 0x4B,
+    "20": 0x4D,
+    "22": 0x50,
+    "25": 0x53,
+    "29": 0x55,
+    "32": 0x58,
+}
+
+# ---------------------------------------------------------------------------
 # Bind C functions
 # ---------------------------------------------------------------------------
 
@@ -474,6 +538,7 @@ _EDS_ERR_NAMES = {
     0x00000024: "INVALID_BUFFER_SIZE",
     0x00000025: "INVALID_FNPOINTER",
     0x00000026: "INVALID_SORT_FN",
+    0x00000081: "PROPERTY_VALUE_NOT_SUPPORTED",
     0x000000C0: "SESSION_CONNECTION_ERROR",  # Undocumented: likely camera locked/unavailable
     0x00002001: "FILE_IO_ERROR",
     0x00002002: "FILE_TOO_MANY_OPEN",
