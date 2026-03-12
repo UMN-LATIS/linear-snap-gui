@@ -64,6 +64,7 @@ class StandaloneCameraApp:
             key=lambda x: float(x),
         )
         self.wb_values = list(eds.WB_MAP.keys())
+        self.rotate_values = ["0", "90", "180", "270"]
 
         self._build_ui()
         self._pump_logs()
@@ -160,11 +161,17 @@ class StandaloneCameraApp:
         ttk.Entry(dl, textvariable=self.output_dir_var, width=72).grid(row=0, column=0, sticky="we")
         ttk.Button(dl, text="Browse", command=self.pick_output_dir).grid(row=0, column=1, padx=(8, 0))
 
+        ttk.Label(dl, text="Rotate").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        self.rotate_var = tk.StringVar(value=self.config.configValues.get("standaloneRotate", "0"))
+        self.rotate_cb = ttk.Combobox(dl, textvariable=self.rotate_var, values=self.rotate_values, width=8, state="readonly")
+        self.rotate_cb.grid(row=1, column=0, sticky="w", padx=(55, 0), pady=(8, 0))
+        self.rotate_cb.bind("<<ComboboxSelected>>", lambda _evt: self.save_preferences())
+
         self.start_dl_btn = ttk.Button(dl, text="Start Auto-Download", command=self.start_download, state=tk.DISABLED)
-        self.start_dl_btn.grid(row=1, column=0, sticky="w", pady=(8, 0))
+        self.start_dl_btn.grid(row=2, column=0, sticky="w", pady=(8, 0))
 
         self.stop_dl_btn = ttk.Button(dl, text="Stop Auto-Download", command=self.stop_download, state=tk.DISABLED)
-        self.stop_dl_btn.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+        self.stop_dl_btn.grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
 
         log_box = ttk.LabelFrame(container, text="Log", padding=8)
         log_box.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
@@ -201,6 +208,7 @@ class StandaloneCameraApp:
         try:
             if self.camera is not None and not self.camera.stopLiveView and self.camera.image is not None:
                 frame = self.camera.image
+                frame = self._rotate_image(frame, self._get_rotation_degrees())
                 h, w = frame.shape[:2]
 
                 max_w = 840
@@ -223,6 +231,53 @@ class StandaloneCameraApp:
             pass
 
         self.root.after(80, self._refresh_preview)
+
+    def _get_rotation_degrees(self) -> int:
+        try:
+            deg = int((self.rotate_var.get() if hasattr(self, "rotate_var") else "0").strip())
+            if deg in (0, 90, 180, 270):
+                return deg
+        except Exception:
+            pass
+        return 0
+
+    def _rotate_image(self, image, degrees: int):
+        if image is None or degrees == 0:
+            return image
+        if degrees == 90:
+            return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+        if degrees == 180:
+            return cv2.rotate(image, cv2.ROTATE_180)
+        if degrees == 270:
+            return cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return image
+
+    def _rotate_saved_file(self, path: str, degrees: int):
+        if degrees == 0:
+            return
+        image = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        if image is None:
+            self._log(f"Rotate skipped (unable to read image): {path}")
+            return
+        rotated = self._rotate_image(image, degrees)
+        if rotated is None:
+            return
+
+        root, ext = os.path.splitext(path)
+        if not ext:
+            # Fallback should be rare, but ensure imwrite has a known extension.
+            ext = ".jpg"
+        tmp_path = f"{root}.rotating{ext}"
+        ok = cv2.imwrite(tmp_path, rotated)
+        if not ok:
+            self._log(f"Rotate failed (write error): {path}")
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            return
+        os.replace(tmp_path, path)
 
     def connect_camera(self):
         if self.camera is not None:
@@ -320,6 +375,7 @@ class StandaloneCameraApp:
         self.config.configValues["previewISO"] = self.live_iso_var.get().strip()
         self.config.configValues["previewShutter"] = self.live_shutter_var.get().strip()
         self.config.configValues["previewFStop"] = self.live_fstop_var.get().strip()
+        self.config.configValues["standaloneRotate"] = str(self._get_rotation_degrees())
 
         self.config.configValues["BasePath"] = self.output_dir_var.get().strip() or self.config.configValues.get("BasePath", "")
         self.config.save_config()
@@ -427,9 +483,15 @@ class StandaloneCameraApp:
             try:
                 saved_path = self.camera.download_next_photo(output_dir=output_dir, timeout_s=0.5)
                 if saved_path:
+                    rotation = self._get_rotation_degrees()
+                    if rotation:
+                        self._rotate_saved_file(saved_path, rotation)
                     self.download_count += 1
                     self.download_count_var.set(f"Downloaded: {self.download_count}")
-                    self._log(f"Downloaded: {saved_path}")
+                    if rotation:
+                        self._log(f"Downloaded: {saved_path} (rotated {rotation} deg)")
+                    else:
+                        self._log(f"Downloaded: {saved_path}")
             except Exception as exc:
                 self._log(f"Download error: {exc}")
                 time.sleep(0.3)

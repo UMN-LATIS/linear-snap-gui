@@ -68,6 +68,7 @@ class LSConfig:
         self.configValues["previewISO"] = self.Config.get("Camera", "previewISO", fallback="100")
         self.configValues["previewShutter"] = self.Config.get("Camera", "previewShutter", fallback="1/15")
         self.configValues["previewFStop"] = self.Config.get("Camera", "previewFStop", fallback="5.6")
+        self.configValues["standaloneRotate"] = self.Config.get("Camera", "standaloneRotate", fallback="0")
         self.configValues["colorTemperature"] = self.Config.get("Camera", "colorTemperature", fallback="5600")
         self.configValues["CoreType"] = self.Config.get("General", "CoreType", fallback="0")
         self.configValues["SerialPort"] = self.Config.get("General", "SerialPort", fallback="")
@@ -100,6 +101,7 @@ class LSConfig:
         self.Config.set("Camera", "previewISO",self.configValues["previewISO"])
         self.Config.set("Camera", "previewShutter",self.configValues["previewShutter"])
         self.Config.set("Camera", "previewFStop",self.configValues["previewFStop"])
+        self.Config.set("Camera", "standaloneRotate",self.configValues["standaloneRotate"])
         self.Config.set("Camera", "colorTemperature",self.configValues["colorTemperature"])
         self.Config.set("Camera", "Model",self.configValues["cameraModel"])
         
