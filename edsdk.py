@@ -22,7 +22,14 @@ def _find_edsdk_binary() -> str:
     if getattr(sys, "frozen", False):
         base = sys._MEIPASS
         if system == "Darwin":
-            return os.path.join(base, "EDSDK.framework", "Versions", "A", "EDSDK")
+            candidates = [
+                os.path.join(base, "EDSDK.framework", "Versions", "A", "EDSDK"),
+                os.path.join(base, "EDSDK.framework", "EDSDK"),
+            ]
+            for path in candidates:
+                if os.path.exists(path):
+                    return path
+            raise FileNotFoundError("Frozen app missing EDSDK.framework binary")
         if system == "Windows":
             return os.path.join(base, "EDSDK.dll")
         raise RuntimeError(f"Unsupported platform for EDSDK: {system}")

@@ -8,6 +8,7 @@ import time
 import atexit
 import pathlib
 import shutil
+import sys
 from pubsub import pub
 from multiprocessing.connection import Client
 
@@ -40,6 +41,7 @@ class CameraControl:
         self._sdk_initialized  = False
         self._event_thread     = None
         self._stop_event_thread = False
+        self.init_error = None
 
         try:
             eds.check(eds.EdsInitializeSDK(), "EdsInitializeSDK")
@@ -53,22 +55,27 @@ class CameraControl:
                     break  # Success!
                 except RuntimeError as e:
                     if "No Canon camera detected" in str(e) and attempt < max_retries - 1:
+                        # Finder-launched frozen apps can race with ptpcamerad/PTPCamera.
+                        # Only use this recovery path for frozen macOS builds.
+                        if platform.system() == "Darwin" and getattr(sys, "frozen", False):
+                            self._reset_macos_camera_daemons(force=True)
                         print(f"Camera not found on attempt {attempt+1}, retrying...")
                         time.sleep(1.5)
                     else:
                         raise
         except Exception as exc:
+            self.init_error = str(exc)
             print(f"Camera init failed: {exc}")
             self.camera = None
 
         atexit.register(self.cleanup)
 
-    def _reset_macos_camera_daemons(self):
+    def _reset_macos_camera_daemons(self, force=False):
         if platform.system() != "Darwin":
             return
         # Optional manual override only. Automatic daemon killing caused
         # regressions where the camera disappeared during initialization.
-        if os.environ.get("LINEARSNAP_KILL_PTP", "0") != "1":
+        if (not force) and os.environ.get("LINEARSNAP_KILL_PTP", "0") != "1":
             return
         os.system("killall -9 ptpcamerad 2>/dev/null; true")
         os.system("killall -9 PTPCamera 2>/dev/null; true")
@@ -79,16 +86,30 @@ class CameraControl:
     # ------------------------------------------------------------------
 
     def _connect(self):
+        # Finder-launched frozen apps can need a short warmup before the camera
+        # appears via EDSDK on macOS.
+        warmup_deadline = time.time() + (4.0 if (platform.system() == "Darwin" and getattr(sys, "frozen", False)) else 0.0)
+
         camera_list = eds.EdsCameraListRef()
-        
-        eds.check(eds.EdsGetCameraList(ctypes.byref(camera_list)), "EdsGetCameraList")
-
         count = eds.EdsUInt32(0)
-        eds.check(eds.EdsGetChildCount(camera_list, ctypes.byref(count)), "EdsGetChildCount")
 
-        if count.value == 0:
+        while True:
+            eds.check(eds.EdsGetCameraList(ctypes.byref(camera_list)), "EdsGetCameraList")
+            eds.check(eds.EdsGetChildCount(camera_list, ctypes.byref(count)), "EdsGetChildCount")
+            if count.value > 0:
+                break
+
             eds.EdsRelease(camera_list)
-            raise RuntimeError("No Canon camera detected")
+            camera_list = eds.EdsCameraListRef()
+
+            if time.time() >= warmup_deadline:
+                raise RuntimeError("No Canon camera detected")
+
+            try:
+                eds.EdsGetEvent()
+            except Exception:
+                pass
+            time.sleep(0.2)
 
         camera_ref = eds.EdsCameraRef()
         try:

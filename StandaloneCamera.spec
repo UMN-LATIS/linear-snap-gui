@@ -8,12 +8,20 @@ _system = platform.system()
 _binaries = []
 _icon = None
 
+
+def _add_tree(src_root, dest_root, out):
+    for root, _, files in os.walk(src_root):
+        rel_dir = os.path.relpath(root, src_root)
+        target_dir = dest_root if rel_dir == '.' else os.path.join(dest_root, rel_dir)
+        for name in files:
+            out.append((os.path.join(root, name), target_dir))
+
 if _system == 'Darwin':
-    _edsdk_src = os.path.join(
+    _framework_root = os.path.join(
         SPECPATH,
-        'canon-sdk', 'mac', 'EDSDK', 'Framework', 'EDSDK.framework', 'Versions', 'A', 'EDSDK',
+        'canon-sdk', 'mac', 'EDSDK', 'Framework', 'EDSDK.framework',
     )
-    _binaries.append((_edsdk_src, 'EDSDK.framework/Versions/A'))
+    _add_tree(_framework_root, 'EDSDK.framework', _binaries)
     _icon = ['icon.icns']
 elif _system == 'Windows':
     _dll_dir = os.path.join(SPECPATH, 'canon-sdk', 'windows', 'EDSDK_64', 'Dll')

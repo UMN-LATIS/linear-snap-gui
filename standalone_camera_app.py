@@ -232,8 +232,9 @@ class StandaloneCameraApp:
         try:
             self.camera = CameraControl(self.config)
             if self.camera.camera is None:
+                detail = self.camera.init_error or "unknown error"
                 self.camera = None
-                raise RuntimeError("Camera initialization failed")
+                raise RuntimeError(f"Camera initialization failed: {detail}")
 
             model = self.camera._get_product_name()
             self.status_var.set(f"Connected: {model}")
