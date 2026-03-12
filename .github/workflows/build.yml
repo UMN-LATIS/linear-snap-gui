@@ -29,13 +29,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-13
+          - os: macos-16
             target: macos
             app: linear-snap
             spec: LinearSnap.spec
             artifact: LinearSnap-macOS.zip
             bundle_dir: LinearSnap.app
-          - os: macos-13
+          - os: macos-16
             target: macos
             app: standalone-camera
             spec: StandaloneCamera.spec
