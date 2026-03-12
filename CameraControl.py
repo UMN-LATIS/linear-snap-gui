@@ -1,20 +1,17 @@
 import threading
-import gphoto2 as gp
+import ctypes
 import numpy as np
-from scipy import ndimage
 import cv2
 import os
 import platform
-import time;
+import time
 import atexit
-from pubsub import pub
 import pathlib
 import shutil
+from pubsub import pub
 from multiprocessing.connection import Client
 
-if(platform.system() == "Darwin"):
-    os.system("killall -9 ptpcamerad")
-
+import edsdk as eds
 
 
 class CameraControl:
@@ -25,27 +22,176 @@ class CameraControl:
     stopLiveView = True
     laplacian = 0
     likelyBlank = False
-    camera = None
+    camera = None           # EdsCameraRef (ctypes c_void_p)
     new_folder_path = ""
     requiresRefocus = False
     stackCenter = None
 
+    # ctypes callback objects must stay alive as long as the SDK holds a
+    # pointer to them — store them as instance attributes.
+    _obj_cb   = None
+    _prop_cb  = None
+    _state_cb = None
 
     def __init__(self, config):
         self.config = config
-        if(platform.system() == "Darwin"):
-            os.system("killall -9 ptpcamerad")
-        # Init camera
+        self._transfer_event  = threading.Event()
+        self._pending_dir_item = None   # EdsDirectoryItemRef awaiting download
+        self._sdk_initialized  = False
+        self._event_thread     = None
+        self._stop_event_thread = False
+
         try:
-            self.camera = gp.Camera()
-            # self.camera.init()
-            # self.camera_config = self.camera.get_config()
-        except:
-            print("Camera not found")
+            eds.check(eds.EdsInitializeSDK(), "EdsInitializeSDK")
+            self._sdk_initialized = True
+            
+            # Retry logic: sometimes the camera needs time to enumerate after SDK init
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self._connect()
+                    break  # Success!
+                except RuntimeError as e:
+                    if "No Canon camera detected" in str(e) and attempt < max_retries - 1:
+                        print(f"Camera not found on attempt {attempt+1}, retrying...")
+                        time.sleep(1.5)
+                    else:
+                        raise
+        except Exception as exc:
+            print(f"Camera init failed: {exc}")
             self.camera = None
-        self.timeout = 3000  # milliseconds
+
         atexit.register(self.cleanup)
-    
+
+    def _reset_macos_camera_daemons(self):
+        if platform.system() != "Darwin":
+            return
+        # Optional manual override only. Automatic daemon killing caused
+        # regressions where the camera disappeared during initialization.
+        if os.environ.get("LINEARSNAP_KILL_PTP", "0") != "1":
+            return
+        os.system("killall -9 ptpcamerad 2>/dev/null; true")
+        os.system("killall -9 PTPCamera 2>/dev/null; true")
+        time.sleep(0.25)
+
+    # ------------------------------------------------------------------
+    # Connection
+    # ------------------------------------------------------------------
+
+    def _connect(self):
+        camera_list = eds.EdsCameraListRef()
+        
+        eds.check(eds.EdsGetCameraList(ctypes.byref(camera_list)), "EdsGetCameraList")
+
+        count = eds.EdsUInt32(0)
+        eds.check(eds.EdsGetChildCount(camera_list, ctypes.byref(count)), "EdsGetChildCount")
+
+        if count.value == 0:
+            eds.EdsRelease(camera_list)
+            raise RuntimeError("No Canon camera detected")
+
+        camera_ref = eds.EdsCameraRef()
+        try:
+            eds.check(
+                eds.EdsGetChildAtIndex(camera_list, 0, ctypes.byref(camera_ref)),
+                "EdsGetChildAtIndex",
+            )
+        except Exception as e:
+            eds.EdsRelease(camera_list)
+            raise
+        
+        eds.EdsRelease(camera_list)
+
+        try:
+            eds.check(eds.EdsOpenSession(camera_ref), "EdsOpenSession")
+        except Exception as e:
+            eds.EdsRelease(camera_ref)
+            raise
+            
+        self.camera = camera_ref
+
+        self._obj_cb   = eds.ObjectEventHandler(self._on_object_event)
+        self._prop_cb  = eds.PropertyEventHandler(self._on_property_event)
+        self._state_cb = eds.StateEventHandler(self._on_state_event)
+
+        err = eds.EdsSetObjectEventHandler(
+            self.camera, eds.kEdsObjectEvent_All,
+            self._obj_cb, None,
+        )
+        eds.check(err, "EdsSetObjectEventHandler")
+        
+        err = eds.EdsSetPropertyEventHandler(
+            self.camera, eds.kEdsPropertyEvent_All,
+            self._prop_cb, None,
+        )
+        eds.check(err, "EdsSetPropertyEventHandler")
+        
+        err = eds.EdsSetCameraStateEventHandler(
+            self.camera, eds.kEdsStateEvent_All,
+            self._state_cb, None,
+        )
+        eds.check(err, "EdsSetCameraStateEventHandler")
+
+        self._stop_event_thread = False
+        self._event_thread = threading.Thread(
+            target=self._poll_events, name="edsdk-events", daemon=True
+        )
+        self._event_thread.start()
+
+    def _get_product_name(self) -> str:
+        buf = ctypes.create_string_buffer(256)
+        try:
+            eds.EdsGetPropertyData(
+                self.camera, eds.kEdsPropID_ProductName, 0, 256, buf,
+            )
+            return buf.value.decode("utf-8", errors="replace")
+        except Exception:
+            return "Unknown"
+
+    # ------------------------------------------------------------------
+    # EdsGetEvent polling thread
+    # ------------------------------------------------------------------
+
+    def _poll_events(self):
+        while not self._stop_event_thread:
+            try:
+                eds.EdsGetEvent()
+            except Exception:
+                pass
+            time.sleep(0.05)
+
+    # ------------------------------------------------------------------
+    # EDSDK event callbacks
+    # ------------------------------------------------------------------
+
+    def _on_object_event(self, event, obj_ref, context):
+        if event == eds.kEdsObjectEvent_DirItemRequestTransfer:
+            eds.EdsRetain(obj_ref)
+            self._pending_dir_item = obj_ref
+            self._transfer_event.set()
+        return 0
+
+    def _on_property_event(self, event, prop_id, param, context):
+        return 0
+
+    def _on_state_event(self, event, event_data, context):
+        if event == eds.kEdsStateEvent_Shutdown:
+            print("Camera disconnected")
+            self.camera = None
+        elif event == eds.kEdsStateEvent_WillSoonShutDown:
+            if self.camera is not None:
+                try:
+                    eds.EdsSendCommand(
+                        self.camera, eds.kEdsCameraCommand_ExtendShutDownTimer, 0,
+                    )
+                except Exception:
+                    pass
+        return 0
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def reset(self):
         self.photoCount = 0
         self.laplacian = 0
@@ -55,274 +201,420 @@ class CameraControl:
     def setCoreId(self, coreId):
         self.coreId = coreId
 
-
-
     def cleanup(self):
         self.stopLiveView = True
-        time.sleep(0.1)
-        print("Running cleanup...")
-        if(self.camera is not None):
-            self.camera.exit()
+        self._stop_event_thread = True
+        time.sleep(0.15)
+        if self.camera is not None:
+            try:
+                eds.EdsCloseSession(self.camera)
+                eds.EdsRelease(self.camera)
+            except Exception:
+                pass
+            self.camera = None
+        if self._sdk_initialized:
+            try:
+                eds.EdsTerminateSDK()
+            except Exception:
+                pass
+            self._sdk_initialized = False
 
     def setLiveView(self, liveView):
-        if(liveView):
-            if(self.stopLiveView == False):
+        if liveView:
+            if not self.stopLiveView:
                 return
             self.stopLiveView = False
-
-            self.t = threading.Thread(target=self.runLiveView, name='liveViewWorker')
-            self.t.daemon = True
-            self.t.start()    
+            
+            # Enable EVF on main thread BEFORE spawning daemon
+            try:
+                self._enable_evf()
+            except Exception as e:
+                print(f"Failed to enable EVF: {e}")
+                self.stopLiveView = True
+                return
+            
+            self.t = threading.Thread(
+                target=self.runLiveView, name="liveViewWorker", daemon=True
+            )
+            self.t.start()
         else:
             self.stopLiveView = True
-    
+            time.sleep(0.2)  # Let thread exit
+            try:
+                self._disable_evf()
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # Camera settings
+    # ------------------------------------------------------------------
+
+    def setupCamera(self, iso_value: str):
+        if self.camera is None:
+            return
+
+        iso_enum = eds.ISO_MAP.get(str(iso_value))
+        if iso_enum is not None:
+            val = eds.EdsUInt32(iso_enum)
+            eds.EdsSetPropertyData(
+                self.camera, eds.kEdsPropID_ISOSpeed, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+            )
+        else:
+            print(f"setupCamera: unknown ISO value '{iso_value}'")
+
+        tv_key = self.config.configValues.get("previewShutter", "1/15")
+        tv_enum = eds.TV_MAP.get(tv_key)
+        if tv_enum is not None:
+            val = eds.EdsUInt32(tv_enum)
+            eds.EdsSetPropertyData(
+                self.camera, eds.kEdsPropID_Tv, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+            )
+        else:
+            print(f"setupCamera: unknown Tv value '{tv_key}'")
+
+        wb_val = eds.EdsUInt32(eds.WB_MAP["Color Temperature"])
+        eds.EdsSetPropertyData(
+            self.camera, eds.kEdsPropID_WhiteBalance, 0,
+            ctypes.sizeof(eds.EdsUInt32), ctypes.byref(wb_val),
+        )
+
+        try:
+            ct = int(self.config.configValues.get("colorTemperature", "5600"))
+            ct_val = eds.EdsUInt32(ct)
+            eds.EdsSetPropertyData(
+                self.camera, eds.kEdsPropID_ColorTemperature, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(ct_val),
+            )
+        except (ValueError, TypeError) as exc:
+            print(f"setupCamera: bad colorTemperature: {exc}")
+
+    def _setupCaptureSettings(self):
+        if self.camera is None:
+            return
+        iso_key  = self.config.configValues.get("captureISO", "100")
+        iso_enum = eds.ISO_MAP.get(str(iso_key))
+        if iso_enum is not None:
+            val = eds.EdsUInt32(iso_enum)
+            eds.EdsSetPropertyData(
+                self.camera, eds.kEdsPropID_ISOSpeed, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+            )
+        tv_key  = self.config.configValues.get("captureShutter", "1/500")
+        tv_enum = eds.TV_MAP.get(tv_key)
+        if tv_enum is not None:
+            val = eds.EdsUInt32(tv_enum)
+            eds.EdsSetPropertyData(
+                self.camera, eds.kEdsPropID_Tv, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+            )
+
+    # ------------------------------------------------------------------
+    # Live view
+    # ------------------------------------------------------------------
+
+    def _enable_evf(self):
+        val = eds.EdsUInt32(eds.kEdsEvfOutputDevice_PC)
+        eds.check(
+            eds.EdsSetPropertyData(
+                self.camera, eds.kEdsPropID_Evf_OutputDevice, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+            ),
+            "enable EVF",
+        )
+
+    def _disable_evf(self):
+        val = eds.EdsUInt32(eds.kEdsEvfOutputDevice_OFF)
+        try:
+            eds.EdsSetPropertyData(
+                self.camera, eds.kEdsPropID_Evf_OutputDevice, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+            )
+        except Exception as exc:
+            print(f"_disable_evf: {exc}")
+
+    def runLiveView(self):
+        if self.camera is None:
+            return
+
+        print("Init LiveView")
+        time.sleep(1.0)  # Let EVF stabilize after enable
+        
+        frame_count = 0
+
+        while True:
+            if self.stopLiveView:
+                break
+                
+            stream_ref = eds.EdsStreamRef()
+            evf_ref    = eds.EdsEvfImageRef()
+            try:
+                eds.check(
+                    eds.EdsCreateMemoryStream(0, ctypes.byref(stream_ref)),
+                    "EdsCreateMemoryStream",
+                )
+                eds.check(
+                    eds.EdsCreateEvfImageRef(stream_ref, ctypes.byref(evf_ref)),
+                    "EdsCreateEvfImageRef",
+                )
+                err = eds.EdsDownloadEvfImage(self.camera, evf_ref)
+                # Transient startup/not-ready states are expected while EVF warms up.
+                if err in (0x00002C00, 0x0000A102):
+                    time.sleep(0.03)
+                    continue
+                eds.check(err, "EdsDownloadEvfImage")
+
+                ptr    = ctypes.c_void_p()
+                length = eds.EdsUInt64()
+                eds.check(eds.EdsGetPointer(stream_ref, ctypes.byref(ptr)), "EdsGetPointer")
+                eds.check(eds.EdsGetLength(stream_ref, ctypes.byref(length)),  "EdsGetLength")
+
+                if length.value > 0 and ptr.value:
+                    raw   = (ctypes.c_uint8 * length.value).from_address(ptr.value)
+                    array = np.frombuffer(raw, dtype=np.uint8)
+                    img   = cv2.imdecode(array, cv2.IMREAD_COLOR)
+
+                    if img is not None:
+                        h, w = img.shape[:2]
+                        left = (w - 500) // 2
+                        top  = (h - 500) // 2
+                        middle = img[top:top+500, left:left+500]
+                        gray   = cv2.cvtColor(middle, cv2.COLOR_BGR2GRAY)
+
+                        if frame_count > 5:
+                            lap = cv2.Laplacian(gray, cv2.CV_64F)
+                            self.laplacian = lap.var()
+
+                            b, g, r, _ = cv2.mean(middle)
+                            if (b + g + r) / 3 < 40:
+                                self.likelyBlank = True
+
+                        self.image = img
+
+            except Exception as exc:
+                print(f"runLiveView frame error: {exc}")
+            finally:
+                if evf_ref.value:
+                    eds.EdsRelease(evf_ref)
+                if stream_ref.value:
+                    eds.EdsRelease(stream_ref)
+
+            if self.stopLiveView:
+                self.image = None
+                break
+
+            frame_count += 1
+
+    # ------------------------------------------------------------------
+    # Core imaging session
+    # ------------------------------------------------------------------
+
+    def prepForCore(self, coreId):
+        self.coreId = coreId
+        timestr = time.strftime("%Y%m%d-%H%M%S")
+        self.new_folder_path = os.path.join(
+            self.config.configValues["BasePath"],
+            coreId + "-" + timestr,
+        )
+        if not os.path.exists(self.new_folder_path):
+            os.makedirs(self.new_folder_path)
+
+        if platform.system() == "Darwin":
+            os.system("killall -9 ptpcamerad 2>/dev/null; true")
+
+        save_to = eds.EdsUInt32(eds.kEdsSaveTo_Host)
+        eds.check(
+            eds.EdsSetPropertyData(
+                self.camera, eds.kEdsPropID_SaveTo, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(save_to),
+            ),
+            "set SaveTo Host",
+        )
+
+        capacity = eds.EdsCapacity()
+        capacity.numberOfFreeClusters = 0x7FFFFFFF
+        capacity.bytesPerSector       = 512
+        capacity.reset                = True
+        eds.check(eds.EdsSetCapacity(self.camera, capacity), "EdsSetCapacity")
+
+        self.setupCamera(self.config.configValues.get("captureISO", "100"))
+
+    def waitForPhoto(self, coreId):
+        print("Starting waitForPhoto thread")
+
+        temp_folder_path = os.path.join(self.new_folder_path, "scratch")
+        if not os.path.exists(temp_folder_path):
+            os.makedirs(temp_folder_path)
+
+        self.photoCount   = 0
+        self.newPosition  = True
+        self.stopWaiting  = False
+
+        print("Waiting for Photos")
+
+        while True:
+            signalled = self._transfer_event.wait(timeout=5.0)
+            self._transfer_event.clear()
+
+            if not signalled:
+                if self.stopWaiting:
+                    break
+                continue
+
+            dir_item = self._pending_dir_item
+            self._pending_dir_item = None
+
+            if dir_item is None:
+                if self.stopWaiting:
+                    break
+                continue
+
+            item_info = eds.EdsDirectoryItemInfo()
+            try:
+                eds.check(
+                    eds.EdsGetDirectoryItemInfo(dir_item, ctypes.byref(item_info)),
+                    "EdsGetDirectoryItemInfo",
+                )
+            except Exception as exc:
+                print(f"EdsGetDirectoryItemInfo failed: {exc}")
+                eds.EdsDownloadCancel(dir_item)
+                eds.EdsRelease(dir_item)
+                continue
+
+            filename    = item_info.szFileName.decode("utf-8", errors="replace")
+            target_path = os.path.join(temp_folder_path, filename)
+
+            stream_ref = eds.EdsStreamRef()
+            try:
+                eds.check(
+                    eds.EdsCreateFileStream(
+                        target_path.encode("utf-8"),
+                        eds.kEdsFileCreateDisposition_CreateAlways,
+                        eds.kEdsAccess_ReadWrite,
+                        ctypes.byref(stream_ref),
+                    ),
+                    "EdsCreateFileStream",
+                )
+                eds.check(
+                    eds.EdsDownload(dir_item, item_info.size, stream_ref),
+                    "EdsDownload",
+                )
+                eds.check(
+                    eds.EdsDownloadComplete(dir_item),
+                    "EdsDownloadComplete",
+                )
+                print(f"Image saved to {target_path}")
+            except Exception as exc:
+                print(f"Download failed: {exc}")
+                try:
+                    eds.EdsDownloadCancel(dir_item)
+                except Exception:
+                    pass
+            finally:
+                if stream_ref.value:
+                    eds.EdsRelease(stream_ref)
+                eds.EdsRelease(dir_item)
+
+            if self.newPosition:
+                self.newPosition = False
+                print("new position")
+                blank_t = threading.Thread(
+                    target=self.testForBlank,
+                    args=(target_path,),
+                    name="test-for-blank",
+                    daemon=True,
+                )
+                blank_t.start()
+
+            self.photoCount += 1
+
+            if self.photoCount == int(self.config.configValues.get("StackDepth", "20")):
+                print("end of position")
+                self.photoCount = 0
+                sort_t = threading.Thread(
+                    target=self.sortPhotos,
+                    args=(temp_folder_path, self.new_folder_path),
+                    name="photo-sort",
+                    daemon=True,
+                )
+                sort_t.start()
+                self.newPosition = True
+
+            if self.stopWaiting:
+                break
+
+        print("Breaking")
+        print("Cleaning up scratch")
+        shutil.rmtree(pathlib.Path(temp_folder_path), ignore_errors=True)
+        print("waitForPhoto thread done")
+
+    # ------------------------------------------------------------------
+    # Image analysis helpers
+    # ------------------------------------------------------------------
+
     def sortPhotos(self, temp_folder_path, new_folder_path):
         print("Sorting photos")
-        # organize photos
-        
-        # get a list of all files in the folder
-        jpeg_files = []
-        iterations = 0
 
-            # filter the list to only include jpeg files
-        files = os.listdir(temp_folder_path)
-        files.sort()
-        jpeg_files = [f for f in files if f.endswith('.JPG') or f.endswith('.jpg')]
-        
-        # sort the first 20 files
-        # create a new folder with a numeric title (001, 002, 003 etc)
+        files = sorted(os.listdir(temp_folder_path))
+        jpeg_files = [f for f in files if f.lower().endswith(".jpg")]
+
         i = 1
         while True:
-            created_folder_path = os.path.join(new_folder_path, '{:03d}'.format(i))
+            created_folder_path = os.path.join(new_folder_path, f"{i:03d}")
             if not os.path.exists(created_folder_path):
                 os.makedirs(created_folder_path)
                 break
             i += 1
 
-        # move all jpeg files into the new folder
-        stackDepth = int(self.config.configValues["StackDepth"])
-        for jpeg in jpeg_files[:stackDepth]:
-            old_path = os.path.join(temp_folder_path, jpeg)
-            new_path = os.path.join(created_folder_path, jpeg)
-            os.rename(old_path, new_path)
+        stack_depth = int(self.config.configValues.get("StackDepth", "20"))
+        for jpeg in jpeg_files[:stack_depth]:
+            os.rename(
+                os.path.join(temp_folder_path, jpeg),
+                os.path.join(created_folder_path, jpeg),
+            )
         print("done sorting")
 
-        print("display the middle image")
-        self.image = cv2.imread(os.path.join(created_folder_path,jpeg_files[round(stackDepth / 2)]))
+        self.image = cv2.imread(
+            os.path.join(created_folder_path, jpeg_files[round(stack_depth / 2)])
+        )
 
-        # get the filesize of each photo
-        file_sizes = []
-        for jpeg in jpeg_files[:stackDepth]:
-            file_sizes.append(os.path.getsize(os.path.join(created_folder_path, jpeg)))
-        
-        # check if the biggest size is within 3 positions of the start or the end of the list
+        file_sizes = [
+            os.path.getsize(os.path.join(created_folder_path, j))
+            for j in jpeg_files[:stack_depth]
+        ]
+
         biggest_size = max(file_sizes)
-        biggest_size_index = file_sizes.index(biggest_size)
-        self.stackCenter = biggest_size_index
-        if biggest_size_index < 3 or biggest_size_index > len(file_sizes) - 3:
-            print("Biggest size is within 3 positions of the start or the end of the list")
+        biggest_idx  = file_sizes.index(biggest_size)
+        self.stackCenter = biggest_idx
+
+        if biggest_idx < 3 or biggest_idx > len(file_sizes) - 3:
+            print("Biggest size is within 3 positions of the start or the end")
             self.requiresRefocus = True
 
-        # check if the biggest size is less than 10% bigger than the smallest size
         smallest_size = min(file_sizes)
         if biggest_size < smallest_size * 1.1:
             self.requiresRefocus = True
 
-
-
     def testForBlank(self, photo):
-        # Load the image
         image = cv2.imread(photo)
         if image is None:
             return
-        # Get the image height and width
-        height, width = image.shape[:2]
-        # Get the center point
-        x, y = int(width/2), int(height/2)
-        # Crop the image to a 500x500 square, centered around the center point
-        cropped_image = image[y-250:y+250, x-250:x+250]
-        # Get the average brightness of the image
-        b, g, r, a = cv2.mean(cropped_image)
-        avg_brightness = (b + g + r) / 3
-        # Check if the average brightness is below a certain threshold
-        threshold = 20
-        if avg_brightness < threshold:
+        h, w = image.shape[:2]
+        x, y = w // 2, h // 2
+        cropped = image[y-250:y+250, x-250:x+250]
+        b, g, r, _ = cv2.mean(cropped)
+        if (b + g + r) / 3 < 20:
             print("End of core")
             self.stopWaiting = True
             pub.sendMessage("coreStatus", message="end")
 
-
     def notifyCoreComplete(self):
-        address = ('localhost', 6234)
+        address = ("localhost", 6234)
         try:
-            conn = Client(address, authkey=b'dendroFun')
+            conn = Client(address, authkey=b"dendroFun")
             print("Broadcasting Core Complete Message")
             conn.send(self.new_folder_path)
-            # conn.send(self.new_folder_path)
             conn.close()
-        except: 
+        except Exception:
             print("Error sending message to LinearStitch")
-
-    def prepForCore(self, coreId):
-        self.coreId = coreId
-        timestr = time.strftime("%Y%m%d-%H%M%S")
-        self.new_folder_path = os.path.join(self.config.configValues["BasePath"], coreId + "-" + timestr)
-        if not os.path.exists(self.new_folder_path):
-            os.makedirs(self.new_folder_path)
-
-        if(platform.system() == "Darwin"):
-            os.system("killall -9 ptpcamerad")
-        self.camera.init()
-        self.setupCamera(self.config.configValues["captureISO"]);
-
-
-
-    def waitForPhoto(self, coreId):
-        print("Starting waitForPhoto thread")
-        
-        temp_folder_path = os.path.join(self.new_folder_path, "scratch")
-        if not os.path.exists(temp_folder_path):
-            os.makedirs(temp_folder_path)
-        
-        self.photoCount = 0;
-        print("Waiting for Photos")
-        
-        self.newPosition = True
-        self.stopWaiting = False
-        timeout = 3000  # milliseconds
-        while True:
-            event_type, event_data = self.camera.wait_for_event(timeout)
-            if event_type == gp.GP_EVENT_FILE_ADDED:
-                print("new loop")
-                cam_file = self.camera.file_get(
-                    event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
-                target_path = os.path.join(temp_folder_path, event_data.name)
-                print("Image is being saved to {}".format(target_path))
-                cam_file.save(target_path)
-                if(self.newPosition):
-                    self.newPosition = False
-                    print("new position")
-                    self.blank = threading.Thread(target=self.testForBlank,args=(target_path,), name='test-for-blank')
-                    self.blank.daemon = True
-                    self.blank.start()
-                self.photoCount = self.photoCount + 1
-                if(self.photoCount == int(self.config.configValues["StackDepth"])):
-                    print("end of position")
-                    self.photoCount = 0
-                    self.sort = threading.Thread(target=self.sortPhotos, args=(temp_folder_path,self.new_folder_path, ), name='photo-sort')
-                    self.sort.daemon = True
-                    self.sort.start()
-                    self.newPosition = True
-            if(self.stopWaiting):
-                print("Breaking")
-                print("Cleaning up scratch")
-                shutil.rmtree(pathlib.Path(temp_folder_path))
-                time.sleep(2)
-                self.camera.exit()
-                print("Exited camera")
-                break
-    
-
-    def setupCamera(self, isoValue): 
-        self.camera_config = self.camera.get_config()
-
-        if(self.config.configValues["cameraModel"] == "Canon R8"):
-            child = self.camera_config.get_child_by_name("iso")
-            child.set_value(isoValue)
-            self.camera.set_single_config("iso", child)
-            child = self.camera_config.get_child_by_name("shutterspeed")
-            child.set_value(self.config.configValues["previewShutter"])
-            self.camera.set_single_config("shutterspeed", child)
-
-            child = self.camera_config.get_child_by_name("whitebalance")
-            child.set_value("Color Temperature")
-            self.camera.set_single_config("whitebalance", child)
-
-            child = self.camera_config.get_child_by_name("colortemperature")
-            child.set_value(self.config.configValues["colorTemperature"])
-            self.camera.set_single_config("colortemperature", child)
-        elif(self.config.configValues["cameraModel"] == "Sony ILX-LR1"):
-            child = self.camera_config.get_child_by_name("iso")
-            child.set_value(isoValue)
-            self.camera.set_single_config("iso", child)
-            child = self.camera_config.get_child_by_name("shutterspeed")
-            child.set_value(self.config.configValues["previewShutter"])
-            self.camera.set_single_config("shutterspeed", child)
-
-            child = self.camera_config.get_child_by_name("whitebalance")
-            child.set_value("Choose Color Temperature")
-            self.camera.set_single_config("whitebalance", child)
-
-            child = self.camera_config.get_child_by_name("colortemperature")
-            child.set_value(float(self.config.configValues["colorTemperature"]))
-            self.camera.set_single_config("colortemperature", child)
-
-
-
-
-    def runLiveView(self):
-        if(platform.system() == "Darwin"):
-            os.system("killall -9 ptpcamerad")
-        self.camera.init()
-        print("Init LiveView")
-
-        self.setupCamera(self.config.configValues["previewISO"]);
-        frameCount = 0
-        while True:
-            # Get the preview frame
-            data = self.camera.capture_preview()
-            data = gp.check_result(gp.gp_file_get_data_and_size(data))
-            array = np.fromstring(memoryview(data).tobytes(), dtype=np.uint8)
-            img = cv2.imdecode(array, cv2.IMREAD_COLOR)
-            # Convert the frame to a numpy array
-            # img = file_data.reshape(file_data.shape[1], file_data.shape[0], 3)
-            height, width = img.shape[:2]
-
-            # Calculate the coordinates of the top-left corner of the middle square
-            left = (width - 500) // 2
-            top = (height - 500) // 2
-            # Get the middle 500x500 pixel square
-            middle_square = img[top:top+500, left:left+500]
-            # Convert the frame to grayscale
-            gray = cv2.cvtColor(middle_square, cv2.COLOR_BGR2GRAY)
-
-
-            # wait until we've had 5 frames to start doing math, in case the buffer has old frames
-            if(frameCount > 5):
-                # Calculate the Laplacian of the frame
-                laplacian = cv2.Laplacian(gray, cv2.CV_64F)
-                variance = laplacian.var()
-                self.laplacian = variance
-
-                # check if the center of the image is black and set a flag
-                b, g, r, a = cv2.mean(middle_square)
-                avg_brightness = (b + g + r) / 3
-                # Check if the average brightness is below a certain threshold
-                threshold = 40
-                if avg_brightness < threshold:
-                    self.likelyBlank = True
-            
-
-            # Display the frame in a window
-            self.image = img
-            # cv2.imshow("Live View", img)
-            
-            # Display the laplacian in the window as well
-            # cv2.imshow("Laplacian", laplacian)
-
-            if(self.stopLiveView):
-                time.sleep(0.1)
-                self.camera_config = self.camera.get_config()
-                
-                # alt key is "capture" on digital rebels
-                if(self.config.configValues["cameraModel"] == "Canon R8"):
-                    child = self.camera_config.get_child_by_name("viewfinder")
-                    child.set_value(0)
-                    self.camera.set_single_config("viewfinder", child)
-                self.image = None
-                self.camera.exit()
-                # self.camera.set_config(self.camera_config)
-                break
-
-            frameCount = frameCount + 1
-

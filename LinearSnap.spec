@@ -1,12 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 
+import os
+_edsdk_src = os.path.join(
+    SPECPATH,
+    'canonSDK', 'EDSDK', 'Framework', 'EDSDK.framework', 'Versions', 'A', 'EDSDK',
+)
+
 a = Analysis(
     ['app.py'],
     pathex=[],
-    binaries=[],
+    binaries=[(_edsdk_src, 'EDSDK.framework/Versions/A')],
     datas=[],
-    hiddenimports=['libvips'],
+    hiddenimports=[],
+    # edsdk.py is in the root; PyInstaller picks it up automatically
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

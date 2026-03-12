@@ -221,7 +221,7 @@ class CameraPrefs (wx.StockPreferencesPage):
 
 		fgSizer2.Add( self.m_staticText13, 0, wx.ALL, 5 )
 
-		m_cameraModelChoices = [ u"Canon R8", u"Sony ILX-LR1" ]
+		m_cameraModelChoices = [ u"Canon R8" ]
 		self.m_cameraModel = wx.Choice( panel, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_cameraModelChoices, 0 )
 		self.m_cameraModel.SetSelection( 0 )
 		fgSizer2.Add( self.m_cameraModel, 0, wx.ALL, 5 )
