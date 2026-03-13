@@ -260,11 +260,16 @@ class CameraControl:
             self.t.start()
         else:
             self.stopLiveView = True
-            time.sleep(0.2)  # Let thread exit
+            # Disable EVF immediately so EdsDownloadEvfImage unblocks on Windows
+            # (on Windows the call can block waiting for a frame; disabling EVF
+            # causes it to return an error, allowing the thread to exit cleanly)
             try:
                 self._disable_evf()
             except Exception:
                 pass
+            if self.t is not None:
+                self.t.join(timeout=3.0)
+                self.t = None
 
     # ------------------------------------------------------------------
     # Camera settings
@@ -568,6 +573,8 @@ class CameraControl:
                         self.image = img
 
             except Exception as exc:
+                if self.stopLiveView:
+                    break  # EVF was disabled; exit cleanly without logging
                 print(f"runLiveView frame error: {exc}")
             finally:
                 if evf_ref.value:
