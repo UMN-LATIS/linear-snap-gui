@@ -225,7 +225,11 @@ class CameraControl:
     def cleanup(self):
         self.stopLiveView = True
         self._stop_event_thread = True
-        time.sleep(0.15)
+        # Join liveview thread so it can finish its current SDK call and call
+        # _disable_evf() itself before we close the session.
+        if self.t is not None:
+            self.t.join(timeout=3.0)
+            self.t = None
         if self.camera is not None:
             try:
                 eds.EdsCloseSession(self.camera)
@@ -260,15 +264,16 @@ class CameraControl:
             self.t.start()
         else:
             self.stopLiveView = True
-            # Disable EVF immediately so EdsDownloadEvfImage unblocks on Windows
-            # (on Windows the call can block waiting for a frame; disabling EVF
-            # causes it to return an error, allowing the thread to exit cleanly)
-            try:
-                self._disable_evf()
-            except Exception:
-                pass
+            # On Windows the EDSDK uses COM/message-pump internally.  Calling
+            # any SDK function (e.g. EdsSetPropertyData) from the main/UI thread
+            # while the liveview thread is blocked inside EdsDownloadEvfImage
+            # causes a COM deadlock: EdsDownloadEvfImage needs the message pump
+            # to complete, but the UI thread is blocked waiting for the same SDK
+            # lock.  Fix: let the liveview thread call _disable_evf() itself
+            # just before it exits, and only join here — no SDK calls from the
+            # main thread while the liveview thread is still alive.
             if self.t is not None:
-                self.t.join(timeout=3.0)
+                self.t.join(timeout=5.0)
                 self.t = None
 
     # ------------------------------------------------------------------
@@ -495,21 +500,58 @@ class CameraControl:
     # ------------------------------------------------------------------
 
     def _enable_evf(self):
-        val = eds.EdsUInt32(eds.kEdsEvfOutputDevice_PC)
+        # Step 1: ensure Evf_Mode is 1 (required per SDK sample StartEvfCommand)
+        evf_mode = eds.EdsUInt32(0)
+        try:
+            eds.EdsGetPropertyData(
+                self.camera, eds.kEdsPropID_Evf_Mode, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(evf_mode),
+            )
+        except Exception:
+            pass
+        if evf_mode.value == 0:
+            mode_on = eds.EdsUInt32(1)
+            eds.check(
+                eds.EdsSetPropertyData(
+                    self.camera, eds.kEdsPropID_Evf_Mode, 0,
+                    ctypes.sizeof(eds.EdsUInt32), ctypes.byref(mode_on),
+                ),
+                "enable Evf_Mode",
+            )
+        # Step 2: OR in the PC bit (read-modify-write, preserve any TFT bit)
+        device = eds.EdsUInt32(0)
+        try:
+            eds.EdsGetPropertyData(
+                self.camera, eds.kEdsPropID_Evf_OutputDevice, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(device),
+            )
+        except Exception:
+            pass
+        device = eds.EdsUInt32(device.value | eds.kEdsEvfOutputDevice_PC)
         eds.check(
             eds.EdsSetPropertyData(
                 self.camera, eds.kEdsPropID_Evf_OutputDevice, 0,
-                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(device),
             ),
-            "enable EVF",
+            "enable EVF output",
         )
 
     def _disable_evf(self):
-        val = eds.EdsUInt32(eds.kEdsEvfOutputDevice_OFF)
+        # Clear only the PC bit (read-modify-write per SDK sample EndEvfCommand).
+        # Setting to OFF (0) would also kill the camera's own TFT display.
+        device = eds.EdsUInt32(0)
+        try:
+            eds.EdsGetPropertyData(
+                self.camera, eds.kEdsPropID_Evf_OutputDevice, 0,
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(device),
+            )
+        except Exception:
+            pass
+        device = eds.EdsUInt32(device.value & ~eds.kEdsEvfOutputDevice_PC & 0xFFFFFFFF)
         try:
             eds.EdsSetPropertyData(
                 self.camera, eds.kEdsPropID_Evf_OutputDevice, 0,
-                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(val),
+                ctypes.sizeof(eds.EdsUInt32), ctypes.byref(device),
             )
         except Exception as exc:
             print(f"_disable_evf: {exc}")
@@ -583,10 +625,14 @@ class CameraControl:
                     eds.EdsRelease(stream_ref)
 
             if self.stopLiveView:
-                self.image = None
                 break
 
             frame_count += 1
+
+        # Disable EVF from THIS thread — never from the main thread while this
+        # thread is alive, to avoid a Windows COM/message-pump deadlock.
+        self._disable_evf()
+        self.image = None
 
     # ------------------------------------------------------------------
     # Core imaging session
