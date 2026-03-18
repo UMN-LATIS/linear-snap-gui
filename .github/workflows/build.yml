@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-13-xlarge
+          - os: macos-26-xlarge
             TARGET: macos
             CMD_BUILD: >
                 pyinstaller -i icon.icns -w -n LinearSnap app.py &&
@@ -42,7 +42,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     - name: Install macOS dependencies
-      if: matrix.os == 'macos-13-xlarge'
+      if: matrix.os == 'macos-26-xlarge'
       run: brew install libgphoto2
     - name: Build with pyinstaller for ${{matrix.TARGET}}
       run: ${{matrix.CMD_BUILD}}
