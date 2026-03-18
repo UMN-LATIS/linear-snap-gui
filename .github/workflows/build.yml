@@ -4,24 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - "main"
+      - main
     tags:
-      - "*"
+      - v*
 
 jobs:
-  pre-release:
-    name: Pre Release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: marvinpinto/action-automatic-releases@latest
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
-          prerelease: true
-          title: "Development Build"
-
   build:
-    name: Build ${{ matrix.app }} (${{ matrix.target }})
+    name: Build ${{ matrix.app_name }} (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     env:
       PRIVATE_SDK_TOKEN: ${{ secrets.PRIVATE_SDK_TOKEN }}
@@ -31,27 +20,27 @@ jobs:
         include:
           - os: macos-26
             target: macos
-            app: linear-snap
+            app_name: LinearSnap
             spec: LinearSnap.spec
-            artifact: LinearSnap-macOS.zip
+            artifact_name: LinearSnap-macOS.zip
             bundle_dir: LinearSnap.app
           - os: macos-26
             target: macos
-            app: standalone-camera
+            app_name: StandaloneCamera
             spec: StandaloneCamera.spec
-            artifact: StandaloneCamera-macOS.zip
+            artifact_name: StandaloneCamera-macOS.zip
             bundle_dir: StandaloneCamera.app
           - os: windows-latest
             target: windows
-            app: linear-snap
+            app_name: LinearSnap
             spec: LinearSnap.spec
-            artifact: LinearSnap-Windows.zip
+            artifact_name: LinearSnap-Windows.zip
             bundle_dir: LinearSnap
           - os: windows-latest
             target: windows
-            app: standalone-camera
+            app_name: StandaloneCamera
             spec: StandaloneCamera.spec
-            artifact: StandaloneCamera-Windows.zip
+            artifact_name: StandaloneCamera-Windows.zip
             bundle_dir: StandaloneCamera
 
     steps:
@@ -79,7 +68,6 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        shell: bash
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -87,40 +75,67 @@ jobs:
 
       - name: Build with PyInstaller
         shell: bash
-        run: |
-          pyinstaller --noconfirm "${{ matrix.spec }}"
+        run: pyinstaller --noconfirm "${{ matrix.spec }}"
 
       - name: Package artifact (macOS)
         if: matrix.target == 'macos'
         shell: bash
         run: |
           cd dist
-          zip -r9 "${{ matrix.artifact }}" "${{ matrix.bundle_dir }}"
+          zip -r9 "${{ matrix.artifact_name }}" "${{ matrix.bundle_dir }}"
 
       - name: Package artifact (Windows)
         if: matrix.target == 'windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path "dist/${{ matrix.bundle_dir }}/*" -DestinationPath "dist/${{ matrix.artifact }}" -Force
+          Compress-Archive -Path "dist/${{ matrix.bundle_dir }}/*" -DestinationPath "dist/${{ matrix.artifact_name }}" -Force
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.artifact }}
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}
 
   release:
+    name: Publish Release Assets
     needs: [build]
     runs-on: ubuntu-24.04
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
-      - name: Upload to latest release
-        if: github.ref == 'refs/heads/main'
+      - name: Create or update release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          gh api repos/${GITHUB_REPOSITORY}/releases/tags/latest | jq -r '.assets[] | [.url] | @tsv' | xargs -n 1 gh api -X DELETE || true
-          find . -name "*.zip" -print0 | xargs -0 -I {} gh release upload --repo ${GITHUB_REPOSITORY} --clobber latest "{}"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            RELEASE_NAME="Release ${TAG_NAME}"
+            PRERELEASE_FLAG=""
+          else
+            TAG_NAME="latest"
+            RELEASE_NAME="Development Build"
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          if ! gh release view "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${TAG_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${RELEASE_NAME}" \
+              ${PRERELEASE_FLAG}
+          fi
+
+          if [[ "${TAG_NAME}" == "latest" ]]; then
+            gh release view "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --json assets -q '.assets[].name' | while IFS= read -r asset_name; do
+              if [[ -n "${asset_name}" ]]; then
+                gh release delete-asset "${TAG_NAME}" "${asset_name}" --repo "${GITHUB_REPOSITORY}" || true
+              fi
+            done
+          fi
+
+          find artifacts -type f -name '*.zip' -print0 | while IFS= read -r -d '' zip_file; do
+            gh release upload "${TAG_NAME}" "${zip_file}" --repo "${GITHUB_REPOSITORY}" --clobber
+          done
