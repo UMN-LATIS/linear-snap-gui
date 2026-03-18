@@ -87,18 +87,19 @@ jobs:
           fi
 
           # Check if release exists
-          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+          if gh release view "$TAG_NAME" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             # For latest, delete old assets before uploading new ones
             if [[ $TAG_NAME == "latest" ]]; then
-              gh release delete-asset "$TAG_NAME" LinearSnapMac.zip 2>/dev/null || true
-              gh release delete-asset "$TAG_NAME" LinearSnapWindows.zip 2>/dev/null || true
+              gh release delete-asset "$TAG_NAME" LinearSnapMac.zip --repo "${GITHUB_REPOSITORY}" 2>/dev/null || true
+              gh release delete-asset "$TAG_NAME" LinearSnapWindows.zip --repo "${GITHUB_REPOSITORY}" 2>/dev/null || true
             fi
           else
             # Create new release
             gh release create "$TAG_NAME" \
+              --repo "${GITHUB_REPOSITORY}" \
               --title "$RELEASE_NAME" \
               --prerelease=$PRERELEASE
           fi
 
           # Upload all artifacts
-          gh release upload "$TAG_NAME" artifacts/*/*  --clobber
+          gh release upload "$TAG_NAME" artifacts/*/* --repo "${GITHUB_REPOSITORY}" --clobber
