@@ -229,7 +229,11 @@ class StandaloneCameraApp:
                 frame = self._rotate_image(frame, self._get_rotation_degrees())
                 target_w = max(self.live_window_label.winfo_width(), 1)
                 target_h = max(self.live_window_label.winfo_height(), 1)
-                frame = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+                fh, fw = frame.shape[:2]
+                scale = min(target_w / fw, target_h / fh)
+                new_w = int(fw * scale)
+                new_h = int(fh * scale)
+                frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
 
                 # Keep OpenCV frame in BGR for imencode; converting to RGB here
                 # causes a channel swap when Tk decodes the PNG.

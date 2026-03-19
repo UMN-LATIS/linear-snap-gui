@@ -7,7 +7,7 @@ name = "miniMacro-gui"
 version = "0.1.0"
 description = "LinearSnap and standalone camera control tools"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
   "numpy==1.26.4",
   "opencv-contrib-python==4.6.0.66",
