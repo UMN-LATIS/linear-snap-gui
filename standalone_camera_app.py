@@ -38,6 +38,13 @@ class StandaloneCameraApp:
         self.log_queue = queue.Queue()
         self.download_count = 0
         self.preview_photo = None
+        self.live_window = None
+        self.live_window_label = None
+        self.live_window_photo = None
+        self.live_window_user_closed = False
+        self.capture_preview_window = None
+        self.capture_preview_label = None
+        self.capture_preview_photo = None
 
         self.iso_values = sorted(
             [k for k in eds.ISO_MAP.keys() if k != "Auto"],
@@ -151,7 +158,7 @@ class StandaloneCameraApp:
         preview = ttk.LabelFrame(container, text="LiveView Preview", padding=8)
         preview.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
 
-        self.preview_label = ttk.Label(preview, text="Live view image will appear here", anchor="center")
+        self.preview_label = ttk.Label(preview, text="LiveView stream opens in a separate window.", anchor="center")
         self.preview_label.pack(fill=tk.BOTH, expand=True)
 
         dl = ttk.LabelFrame(container, text="Physical Shutter Auto-Download", padding=8)
@@ -167,11 +174,19 @@ class StandaloneCameraApp:
         self.rotate_cb.grid(row=1, column=0, sticky="w", padx=(55, 0), pady=(8, 0))
         self.rotate_cb.bind("<<ComboboxSelected>>", lambda _evt: self.save_preferences())
 
-        self.start_dl_btn = ttk.Button(dl, text="Start Auto-Download", command=self.start_download, state=tk.DISABLED)
-        self.start_dl_btn.grid(row=2, column=0, sticky="w", pady=(8, 0))
+        self.show_image_preview_var = tk.BooleanVar(
+            value=self.config.configValues.get("standaloneShowImagePreview", "0") == "1"
+        )
+        self.show_image_preview_cb = ttk.Checkbutton(
+            dl,
+            text="Show image preview",
+            variable=self.show_image_preview_var,
+            command=self._on_toggle_capture_preview,
+        )
+        self.show_image_preview_cb.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
 
-        self.stop_dl_btn = ttk.Button(dl, text="Stop Auto-Download", command=self.stop_download, state=tk.DISABLED)
-        self.stop_dl_btn.grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+        self.toggle_dl_btn = ttk.Button(dl, text="Start Auto-Download", command=self.toggle_download, state=tk.DISABLED)
+        self.toggle_dl_btn.grid(row=2, column=0, sticky="w", pady=(8, 0))
 
         log_box = ttk.LabelFrame(container, text="Log", padding=8)
         log_box.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
@@ -206,27 +221,25 @@ class StandaloneCameraApp:
 
     def _refresh_preview(self):
         try:
-            if self.camera is not None and not self.camera.stopLiveView and self.camera.image is not None:
+            if self.camera is not None and not self.camera.stopLiveView and self.camera.image is not None and not self.live_window_user_closed:
+                if self.live_window is None or not self.live_window.winfo_exists():
+                    return
+
                 frame = self.camera.image
                 frame = self._rotate_image(frame, self._get_rotation_degrees())
-                h, w = frame.shape[:2]
-
-                max_w = 840
-                max_h = 420
-                scale = min(max_w / w, max_h / h, 1.0)
-                if scale < 1.0:
-                    frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+                target_w = max(self.live_window_label.winfo_width(), 1)
+                target_h = max(self.live_window_label.winfo_height(), 1)
+                frame = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
 
                 # Keep OpenCV frame in BGR for imencode; converting to RGB here
                 # causes a channel swap when Tk decodes the PNG.
                 ok, encoded = cv2.imencode(".png", frame)
-                if ok:
+                if ok and self.live_window_label is not None:
                     png_b64 = base64.b64encode(encoded.tobytes()).decode("ascii")
-                    self.preview_photo = tk.PhotoImage(data=png_b64)
-                    self.preview_label.configure(image=self.preview_photo, text="")
+                    self.live_window_photo = tk.PhotoImage(data=png_b64)
+                    self.live_window_label.configure(image=self.live_window_photo, text="")
             elif self.camera is None or self.camera.stopLiveView:
-                self.preview_label.configure(image="", text="Live view image will appear here")
-                self.preview_photo = None
+                self._close_live_window()
         except Exception:
             pass
 
@@ -298,7 +311,7 @@ class StandaloneCameraApp:
             self.live_btn.configure(state=tk.NORMAL)
             self.apply_shoot_btn.configure(state=tk.NORMAL)
             self.apply_live_btn.configure(state=tk.NORMAL)
-            self.start_dl_btn.configure(state=tk.NORMAL)
+            self.toggle_dl_btn.configure(state=tk.NORMAL)
             self.connect_btn.configure(state=tk.DISABLED)
 
             self._apply_camera_supported_dropdowns()
@@ -376,6 +389,7 @@ class StandaloneCameraApp:
         self.config.configValues["previewShutter"] = self.live_shutter_var.get().strip()
         self.config.configValues["previewFStop"] = self.live_fstop_var.get().strip()
         self.config.configValues["standaloneRotate"] = str(self._get_rotation_degrees())
+        self.config.configValues["standaloneShowImagePreview"] = "1" if self.show_image_preview_var.get() else "0"
 
         self.config.configValues["BasePath"] = self.output_dir_var.get().strip() or self.config.configValues.get("BasePath", "")
         self.config.save_config()
@@ -416,10 +430,12 @@ class StandaloneCameraApp:
 
         if self.camera.stopLiveView:
             try:
+                self.live_window_user_closed = False
                 self.camera.set_iso(self.live_iso_var.get().strip())
                 self.camera.set_shutter(self.live_shutter_var.get().strip())
                 self.camera.set_aperture(self.live_fstop_var.get().strip())
                 self.camera.setLiveView(True)
+                self._ensure_live_window()
                 self.live_btn.configure(text="Stop LiveView")
                 self._log("LiveView started (LiveView profile applied)")
             except Exception as exc:
@@ -427,11 +443,13 @@ class StandaloneCameraApp:
                 messagebox.showerror("LiveView Error", str(exc))
         else:
             try:
+                self.live_window_user_closed = True
                 self.camera.setLiveView(False)
                 self.camera.set_iso(self.shoot_iso_var.get().strip())
                 self.camera.set_shutter(self.shoot_shutter_var.get().strip())
                 self.camera.set_aperture(self.shoot_fstop_var.get().strip())
                 self.camera.set_white_balance(self.shoot_wb_var.get().strip())
+                self._close_live_window()
                 self.live_btn.configure(text="Start LiveView")
                 self._log("LiveView stopped (Shooting profile restored)")
                 self.save_preferences()
@@ -443,6 +461,12 @@ class StandaloneCameraApp:
         chosen = filedialog.askdirectory(initialdir=self.output_dir_var.get())
         if chosen:
             self.output_dir_var.set(chosen)
+
+    def toggle_download(self):
+        if self.download_running:
+            self.stop_download()
+        else:
+            self.start_download()
 
     def start_download(self):
         if self.camera is None:
@@ -467,14 +491,12 @@ class StandaloneCameraApp:
         self.download_thread = threading.Thread(target=self._download_worker, daemon=True)
         self.download_thread.start()
 
-        self.start_dl_btn.configure(state=tk.DISABLED)
-        self.stop_dl_btn.configure(state=tk.NORMAL)
+        self.toggle_dl_btn.configure(text="Stop Auto-Download", state=tk.NORMAL)
         self._log(f"Auto-download started: {out_dir}")
 
     def stop_download(self):
         self.download_running = False
-        self.stop_dl_btn.configure(state=tk.DISABLED)
-        self.start_dl_btn.configure(state=tk.NORMAL)
+        self.toggle_dl_btn.configure(text="Start Auto-Download", state=(tk.NORMAL if self.camera else tk.DISABLED))
         self._log("Auto-download stopping")
 
     def _download_worker(self):
@@ -487,7 +509,9 @@ class StandaloneCameraApp:
                     if rotation:
                         self._rotate_saved_file(saved_path, rotation)
                     self.download_count += 1
-                    self.download_count_var.set(f"Downloaded: {self.download_count}")
+                    self.root.after(0, lambda c=self.download_count: self.download_count_var.set(f"Downloaded: {c}"))
+                    if self.show_image_preview_var.get():
+                        self.root.after(0, lambda p=saved_path: self._show_captured_image_preview(p))
                     if rotation:
                         self._log(f"Downloaded: {saved_path} (rotated {rotation} deg)")
                     else:
@@ -496,13 +520,90 @@ class StandaloneCameraApp:
                 self._log(f"Download error: {exc}")
                 time.sleep(0.3)
 
-        self.root.after(0, lambda: self.stop_dl_btn.configure(state=tk.DISABLED))
-        self.root.after(0, lambda: self.start_dl_btn.configure(state=tk.NORMAL if self.camera else tk.DISABLED))
+        self.root.after(0, lambda: self.toggle_dl_btn.configure(
+            text="Start Auto-Download",
+            state=(tk.NORMAL if self.camera else tk.DISABLED),
+        ))
+
+    def _on_toggle_capture_preview(self):
+        self.save_preferences()
+        if not self.show_image_preview_var.get():
+            self._close_capture_preview_window()
+
+    def _close_capture_preview_window(self):
+        if self.capture_preview_window is not None and self.capture_preview_window.winfo_exists():
+            self.capture_preview_window.destroy()
+        self.capture_preview_window = None
+        self.capture_preview_label = None
+        self.capture_preview_photo = None
+
+    def _ensure_live_window(self):
+        if self.live_window is not None and self.live_window.winfo_exists():
+            return
+
+        self.live_window = tk.Toplevel(self.root)
+        self.live_window.title("LiveView Stream")
+        self.live_window.geometry("1000x700")
+        self.live_window.minsize(400, 300)
+        self.live_window_label = ttk.Label(self.live_window, text="Live view image will appear here", anchor="center")
+        self.live_window_label.pack(fill=tk.BOTH, expand=True)
+
+        def _close_live_window():
+            if self.camera is not None and not self.camera.stopLiveView:
+                self.live_window_user_closed = True
+                self.toggle_liveview()
+            else:
+                self._close_live_window()
+
+        self.live_window.protocol("WM_DELETE_WINDOW", _close_live_window)
+
+    def _close_live_window(self):
+        if self.live_window is not None and self.live_window.winfo_exists():
+            self.live_window.destroy()
+        self.live_window = None
+        self.live_window_label = None
+        self.live_window_photo = None
+
+    def _show_captured_image_preview(self, image_path: str):
+        if not self.show_image_preview_var.get():
+            return
+
+        if self.capture_preview_window is None or not self.capture_preview_window.winfo_exists():
+            self.capture_preview_window = tk.Toplevel(self.root)
+            self.capture_preview_window.title("Image Preview")
+            self.capture_preview_window.geometry("1000x700")
+            self.capture_preview_window.minsize(400, 300)
+            self.capture_preview_label = ttk.Label(self.capture_preview_window, text="Waiting for image...", anchor="center")
+            self.capture_preview_label.pack(fill=tk.BOTH, expand=True)
+            self.capture_preview_window.protocol("WM_DELETE_WINDOW", self._close_capture_preview_window)
+
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        if image is None:
+            self._log(f"Image preview skipped (unable to read file): {image_path}")
+            return
+
+        h, w = image.shape[:2]
+        max_w = 1400
+        max_h = 900
+        scale = min(max_w / w, max_h / h, 1.0)
+        if scale < 1.0:
+            image = cv2.resize(image, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
+        ok, encoded = cv2.imencode(".png", image)
+        if not ok or self.capture_preview_label is None:
+            return
+
+        png_b64 = base64.b64encode(encoded.tobytes()).decode("ascii")
+        self.capture_preview_photo = tk.PhotoImage(data=png_b64)
+        self.capture_preview_label.configure(image=self.capture_preview_photo, text="")
+        self.capture_preview_window.lift()
 
     def _on_close(self):
         self.download_running = False
         try:
             self.save_preferences()
+            self._close_capture_preview_window()
+            self._close_live_window()
             if self.camera is not None:
                 try:
                     self.camera.setLiveView(False)

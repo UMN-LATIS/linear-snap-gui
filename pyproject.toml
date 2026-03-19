@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "miniMacro-gui"
+version = "0.1.0"
+description = "LinearSnap and standalone camera control tools"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy==1.26.4",
+  "opencv-contrib-python==4.6.0.66",
+  "PyQt5==5.15.10",
+  "pyserial==3.5",
+  "scipy==1.17.1",
+  "pypubsub==4.0.3",
+  "appdirs==1.4.4",
+  "wxPython==4.2.5",
+]
+
+[project.optional-dependencies]
+gphoto = [
+  "gphoto2",
+]
+build = [
+  "pyinstaller>=5.12",
+]
+
+[tool.setuptools]
+py-modules = [
+  "app",
+  "gui",
+  "CameraControl",
+  "LinearSnapControl",
+  "LinearSnapFrame",
+  "Preferences",
+  "config",
+  "edsdk",
+  "standalone_camera_app",
+]
