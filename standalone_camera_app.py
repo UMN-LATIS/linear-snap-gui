@@ -19,6 +19,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 import cv2
+import numpy as np
 import edsdk as eds
 from config import LSConfig
 from CameraControl import CameraControl
@@ -35,6 +36,9 @@ class StandaloneCameraApp:
 
         self.download_running = False
         self.download_thread = None
+        self.processing_thread = None
+        self.processing_queue = queue.Queue()
+        self._processing_shutdown_token = object()
         self.log_queue = queue.Queue()
         self.download_count = 0
         self.preview_photo = None
@@ -491,6 +495,7 @@ class StandaloneCameraApp:
             messagebox.showerror("Download Error", str(exc))
             return
 
+        self._ensure_processing_worker()
         self.download_running = True
         self.download_thread = threading.Thread(target=self._download_worker, daemon=True)
         self.download_thread.start()
@@ -503,27 +508,80 @@ class StandaloneCameraApp:
         self.toggle_dl_btn.configure(text="Start Auto-Download", state=(tk.NORMAL if self.camera else tk.DISABLED))
         self._log("Auto-download stopping")
 
+    def _ensure_processing_worker(self):
+        if self.processing_thread is not None and self.processing_thread.is_alive():
+            return
+        self.processing_thread = threading.Thread(target=self._process_download_worker, daemon=True)
+        self.processing_thread.start()
+
+    def _write_download_file(self, path: str, image_bytes: bytes):
+        directory = os.path.dirname(path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+
+        tmp_path = f"{path}.downloading"
+        with open(tmp_path, "wb") as image_file:
+            image_file.write(image_bytes)
+        os.replace(tmp_path, path)
+
+    def _save_rotated_file(self, path: str, image, original_ext: str):
+        root, ext = os.path.splitext(path)
+        write_ext = ext or original_ext or ".jpg"
+        tmp_path = f"{root}.rotating{write_ext}"
+        ok = cv2.imwrite(tmp_path, image)
+        if not ok:
+            raise RuntimeError(f"Rotate failed (write error): {path}")
+        os.replace(tmp_path, path)
+
+    def _process_download_worker(self):
+        while True:
+            job = self.processing_queue.get()
+            try:
+                if job is self._processing_shutdown_token:
+                    return
+
+                target_path, image_bytes, rotation, show_preview = job
+                if rotation:
+                    encoded = np.frombuffer(image_bytes, dtype=np.uint8)
+                    image = cv2.imdecode(encoded, cv2.IMREAD_UNCHANGED)
+                    if image is None:
+                        raise RuntimeError(f"Rotate skipped (unable to decode image): {target_path}")
+                    rotated = self._rotate_image(image, rotation)
+                    if rotated is None:
+                        raise RuntimeError(f"Rotate failed (empty result): {target_path}")
+                    self._save_rotated_file(target_path, rotated, os.path.splitext(target_path)[1])
+                else:
+                    self._write_download_file(target_path, image_bytes)
+
+                self.download_count += 1
+                self.root.after(0, lambda c=self.download_count: self.download_count_var.set(f"Downloaded: {c}"))
+                if show_preview:
+                    self.root.after(0, lambda p=target_path: self._show_captured_image_preview(p))
+                if rotation:
+                    self._log(f"Downloaded: {target_path} (rotated {rotation} deg)")
+                else:
+                    self._log(f"Downloaded: {target_path}")
+            except Exception as exc:
+                self._log(f"Save error: {exc}")
+            finally:
+                self.processing_queue.task_done()
+
     def _download_worker(self):
         output_dir = self.output_dir_var.get().strip()
         while self.download_running and self.camera is not None:
             try:
-                saved_path = self.camera.download_next_photo(output_dir=output_dir, timeout_s=0.5)
-                if saved_path:
+                photo_data = self.camera.download_next_photo_data(timeout_s=0.5)
+                if photo_data:
+                    filename, image_bytes = photo_data
+                    saved_path = os.path.join(output_dir, filename)
                     rotation = self._get_rotation_degrees()
-                    if rotation:
-                        self._rotate_saved_file(saved_path, rotation)
-                    self.download_count += 1
-                    self.root.after(0, lambda c=self.download_count: self.download_count_var.set(f"Downloaded: {c}"))
-                    if self.show_image_preview_var.get():
-                        self.root.after(0, lambda p=saved_path: self._show_captured_image_preview(p))
-                    if rotation:
-                        self._log(f"Downloaded: {saved_path} (rotated {rotation} deg)")
-                    else:
-                        self._log(f"Downloaded: {saved_path}")
+                    show_preview = bool(self.show_image_preview_var.get())
+                    self.processing_queue.put((saved_path, image_bytes, rotation, show_preview))
             except Exception as exc:
                 self._log(f"Download error: {exc}")
                 time.sleep(0.3)
 
+        self.download_thread = None
         self.root.after(0, lambda: self.toggle_dl_btn.configure(
             text="Start Auto-Download",
             state=(tk.NORMAL if self.camera else tk.DISABLED),
@@ -608,6 +666,11 @@ class StandaloneCameraApp:
             self.save_preferences()
             self._close_capture_preview_window()
             self._close_live_window()
+            if self.download_thread is not None and self.download_thread.is_alive():
+                self.download_thread.join(timeout=2.0)
+            if self.processing_thread is not None and self.processing_thread.is_alive():
+                self.processing_queue.put(self._processing_shutdown_token)
+                self.processing_thread.join(timeout=5.0)
             if self.camera is not None:
                 try:
                     self.camera.setLiveView(False)

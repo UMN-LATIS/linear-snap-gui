@@ -98,7 +98,6 @@ class CameraControl:
         if (not force) and os.environ.get("LINEARSNAP_KILL_PTP", "0") != "1":
             return
         os.system("killall -9 ptpcamerad 2>/dev/null; true")
-        os.system("killall -9 PTPCamera 2>/dev/null; true")
         time.sleep(0.25)
 
     # ------------------------------------------------------------------
@@ -521,7 +520,7 @@ class CameraControl:
         capacity.reset = True
         eds.check(eds.EdsSetCapacity(self.camera, capacity), "EdsSetCapacity")
 
-    def _download_dir_item_to(self, dir_item, output_dir: str):
+    def _download_dir_item_bytes(self, dir_item):
         item_info = eds.EdsDirectoryItemInfo()
         eds.check(
             eds.EdsGetDirectoryItemInfo(dir_item, ctypes.byref(item_info)),
@@ -529,29 +528,28 @@ class CameraControl:
         )
 
         filename = item_info.szFileName.decode("utf-8", errors="replace")
-        os.makedirs(output_dir, exist_ok=True)
-        target_path = os.path.join(output_dir, filename)
-
         stream_ref = eds.EdsStreamRef()
         try:
             eds.check(
-                eds.EdsCreateFileStream(
-                    target_path.encode("utf-8"),
-                    eds.kEdsFileCreateDisposition_CreateAlways,
-                    eds.kEdsAccess_ReadWrite,
-                    ctypes.byref(stream_ref),
-                ),
-                "EdsCreateFileStream",
+                eds.EdsCreateMemoryStream(item_info.size, ctypes.byref(stream_ref)),
+                "EdsCreateMemoryStream",
             )
             eds.check(eds.EdsDownload(dir_item, item_info.size, stream_ref), "EdsDownload")
             eds.check(eds.EdsDownloadComplete(dir_item), "EdsDownloadComplete")
+
+            stream_length = eds.EdsUInt64()
+            eds.check(eds.EdsGetLength(stream_ref, ctypes.byref(stream_length)), "EdsGetLength")
+
+            stream_ptr = ctypes.c_void_p()
+            eds.check(eds.EdsGetPointer(stream_ref, ctypes.byref(stream_ptr)), "EdsGetPointer")
+            data = ctypes.string_at(stream_ptr.value, int(stream_length.value))
         finally:
             if stream_ref.value:
                 eds.EdsRelease(stream_ref)
 
-        return target_path
+        return filename, data
 
-    def download_next_photo(self, output_dir: str, timeout_s: float = 0.5):
+    def download_next_photo_data(self, timeout_s: float = 0.5):
         if self.camera is None:
             raise RuntimeError("Camera not initialized")
 
@@ -566,9 +564,29 @@ class CameraControl:
             return None
 
         try:
-            return self._download_dir_item_to(dir_item, output_dir)
+            return self._download_dir_item_bytes(dir_item)
         finally:
             eds.EdsRelease(dir_item)
+
+    def _download_dir_item_to(self, dir_item, output_dir: str):
+        filename, data = self._download_dir_item_bytes(dir_item)
+        os.makedirs(output_dir, exist_ok=True)
+        target_path = os.path.join(output_dir, filename)
+        with open(target_path, "wb") as image_file:
+            image_file.write(data)
+        return target_path
+
+    def download_next_photo(self, output_dir: str, timeout_s: float = 0.5):
+        photo_data = self.download_next_photo_data(timeout_s=timeout_s)
+        if photo_data is None:
+            return None
+
+        filename, data = photo_data
+        os.makedirs(output_dir, exist_ok=True)
+        target_path = os.path.join(output_dir, filename)
+        with open(target_path, "wb") as image_file:
+            image_file.write(data)
+        return target_path
 
     def _setupCaptureSettings(self):
         if self.camera is None:
