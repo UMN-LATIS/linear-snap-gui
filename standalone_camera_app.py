@@ -36,9 +36,11 @@ class StandaloneCameraApp:
 
         self.download_running = False
         self.download_thread = None
-        self.processing_thread = None
+        self.processing_threads = []
+        self.processing_worker_count = max(1, min(4, (os.cpu_count() or 2) // 2 or 1))
         self.processing_queue = queue.Queue()
         self._processing_shutdown_token = object()
+        self._download_count_lock = threading.Lock()
         self.log_queue = queue.Queue()
         self.download_count = 0
         self.preview_photo = None
@@ -323,6 +325,7 @@ class StandaloneCameraApp:
             self.connect_btn.configure(state=tk.DISABLED)
 
             self._apply_camera_supported_dropdowns()
+            self.apply_shooting_profile()
         except Exception as exc:
             self._log(f"Connect failed: {exc}")
             messagebox.showerror("Camera Error", str(exc))
@@ -509,10 +512,21 @@ class StandaloneCameraApp:
         self._log("Auto-download stopping")
 
     def _ensure_processing_worker(self):
-        if self.processing_thread is not None and self.processing_thread.is_alive():
+        alive_workers = [t for t in self.processing_threads if t.is_alive()]
+        if len(alive_workers) >= self.processing_worker_count:
+            self.processing_threads = alive_workers
             return
-        self.processing_thread = threading.Thread(target=self._process_download_worker, daemon=True)
-        self.processing_thread.start()
+
+        self.processing_threads = alive_workers
+        while len(self.processing_threads) < self.processing_worker_count:
+            worker_index = len(self.processing_threads) + 1
+            worker = threading.Thread(
+                target=self._process_download_worker,
+                daemon=True,
+                name=f"image-processing-{worker_index}",
+            )
+            worker.start()
+            self.processing_threads.append(worker)
 
     def _write_download_file(self, path: str, image_bytes: bytes):
         directory = os.path.dirname(path)
@@ -553,8 +567,10 @@ class StandaloneCameraApp:
                 else:
                     self._write_download_file(target_path, image_bytes)
 
-                self.download_count += 1
-                self.root.after(0, lambda c=self.download_count: self.download_count_var.set(f"Downloaded: {c}"))
+                with self._download_count_lock:
+                    self.download_count += 1
+                    current_count = self.download_count
+                self.root.after(0, lambda c=current_count: self.download_count_var.set(f"Downloaded: {c}"))
                 if show_preview:
                     self.root.after(0, lambda p=target_path: self._show_captured_image_preview(p))
                 if rotation:
@@ -668,9 +684,11 @@ class StandaloneCameraApp:
             self._close_live_window()
             if self.download_thread is not None and self.download_thread.is_alive():
                 self.download_thread.join(timeout=2.0)
-            if self.processing_thread is not None and self.processing_thread.is_alive():
+            live_workers = [t for t in self.processing_threads if t.is_alive()]
+            for _ in live_workers:
                 self.processing_queue.put(self._processing_shutdown_token)
-                self.processing_thread.join(timeout=5.0)
+            for worker in live_workers:
+                worker.join(timeout=5.0)
             if self.camera is not None:
                 try:
                     self.camera.setLiveView(False)

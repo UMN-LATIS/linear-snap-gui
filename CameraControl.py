@@ -240,7 +240,7 @@ class CameraControl:
 
     @staticmethod
     def set_debug_logging(enabled: bool):
-        set_camera_debug_logging(true)
+        set_camera_debug_logging(enabled)
 
     def setCoreId(self, coreId):
         self.coreId = coreId
@@ -255,7 +255,15 @@ class CameraControl:
             self.t.join(timeout=3.0)
             if self.t.is_alive():
                 debug_log(f"[cleanup] WARNING: Thread still alive after join timeout!")
-            self.t = None
+                # Last-resort unblock: EVF download can stay stuck until EVF output is cleared.
+                self._attempt_liveview_unblock()
+                self.t.join(timeout=2.0)
+                if self.t.is_alive():
+                    debug_log("[cleanup] WARNING: Liveview thread still alive after unblock attempt")
+                else:
+                    self.t = None
+            else:
+                self.t = None
         if self.camera is not None:
             try:
                 debug_log("[cleanup] Closing session...")
@@ -291,6 +299,18 @@ class CameraControl:
 
         self.t = None
         return True
+
+    def _attempt_liveview_unblock(self) -> bool:
+        """Best-effort recovery when EdsDownloadEvfImage appears stuck."""
+        if self.camera is None:
+            return False
+        try:
+            debug_log("[_attempt_liveview_unblock] Attempting emergency EVF disable")
+            self._disable_evf()
+            return True
+        except Exception as exc:
+            debug_log(f"[_attempt_liveview_unblock] Emergency EVF disable failed: {exc}")
+            return False
 
     def request_liveview_stop(self):
         debug_log("[request_liveview_stop] Stop requested")
@@ -338,10 +358,13 @@ class CameraControl:
             debug_log("[setLiveView] Stopping LiveView")
             self.request_liveview_stop()
 
-            if not self._wait_for_liveview_exit(timeout_s=3.0):
-                raise RuntimeError(
-                    "Liveview thread is still blocked in EdsDownloadEvfImage; refusing to touch camera state"
-                )
+            if not self._wait_for_liveview_exit(timeout_s=1.5):
+                debug_log("[setLiveView] LiveView worker did not exit quickly; attempting unblock")
+                self._attempt_liveview_unblock()
+                if not self._wait_for_liveview_exit(timeout_s=2.0):
+                    raise RuntimeError(
+                        "Liveview thread is still blocked in EdsDownloadEvfImage; refusing to touch camera state"
+                    )
 
             try:
                 self.finalize_liveview_stop()
@@ -652,7 +675,8 @@ class CameraControl:
     def _disable_evf(self):
         # Clear only the PC bit (read-modify-write per SDK sample EndEvfCommand).
         # Setting to OFF (0) would also kill the camera's own TFT display.
-        # Only called when we're sure the liveview thread is not running.
+        # Usually called after liveview exits; may also be used as an emergency
+        # unblock attempt when EVF download appears stuck.
         debug_log("[_disable_evf] START")
         if self.camera is None:
             debug_log("[_disable_evf] Camera is None, skipping")
@@ -770,6 +794,12 @@ class CameraControl:
             debug_log(f"[runLiveView] Incrementing frame_count to {frame_count}")
 
         debug_log("[runLiveView] Exited main loop")
+        try:
+            # Keep EVF shutdown in the worker path so regular stop does not rely
+            # on the main thread making SDK calls while liveview is active.
+            self._disable_evf()
+        except Exception as exc:
+            debug_log(f"[runLiveView] _disable_evf during shutdown failed: {exc}")
         self.image = None
         self._liveview_exit_event.set()
         debug_log("[runLiveView] Thread exiting")
