@@ -455,7 +455,8 @@ class StandaloneCameraApp:
         else:
             try:
                 self.live_window_user_closed = True
-                self.camera.setLiveView(False)
+                if not self.camera.stop_liveview_blocking():
+                    raise RuntimeError("LiveView worker did not shut down cleanly")
                 self.camera.set_iso(self.shoot_iso_var.get().strip())
                 self.camera.set_shutter(self.shoot_shutter_var.get().strip())
                 self.camera.set_aperture(self.shoot_fstop_var.get().strip())

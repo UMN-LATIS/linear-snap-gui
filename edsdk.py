@@ -163,6 +163,7 @@ kEdsPropID_ISOSpeed          = 0x00000402
 kEdsPropID_Tv                = 0x00000406
 kEdsPropID_Av                = 0x00000405
 kEdsPropID_Evf_OutputDevice  = 0x00000500
+kEdsPropID_Evf_DepthOfFieldPreview = 0x00000504
 kEdsPropID_Evf_Mode          = 0x00000501
 kEdsPropID_Evf_AFMode        = 0x0000050E
 
@@ -192,6 +193,7 @@ kEdsCameraCommand_ExtendShutDownTimer    = 0x00000001
 kEdsCameraCommand_PressShutterButton     = 0x00000004
 kEdsCameraCommand_DoEvfAf                = 0x00000102
 kEdsCameraCommand_DriveLensEvf           = 0x00000103
+kEdsCameraCommand_EvfAf_OFF              = 0x00000000
 
 kEdsCameraCommand_ShutterButton_OFF              = 0x00000000
 kEdsCameraCommand_ShutterButton_Halfway          = 0x00000001

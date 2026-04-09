@@ -20,7 +20,12 @@ def _env_flag(name: str, default: str = "0") -> bool:
     return value not in ("", "0", "false", "no", "off")
 
 
-DEBUG_CAMERA_CONTROL = _env_flag("LINEARSNAP_DEBUG_CAMERA")
+DEBUG_CAMERA_CONTROL = _env_flag("LINEARSNAP_DEBUG_CAMERA", "0")
+DEBUG_CAMERA_LOG_PATH = os.environ.get("LINEARSNAP_DEBUG_CAMERA_LOG", "camera_debug.log")
+
+
+def _debug_timestamp() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def set_camera_debug_logging(enabled: bool):
@@ -30,7 +35,13 @@ def set_camera_debug_logging(enabled: bool):
 
 def debug_log(*args, **kwargs):
     if DEBUG_CAMERA_CONTROL:
+        message = " ".join(str(a) for a in args)
         print(*args, **kwargs)
+        try:
+            with open(DEBUG_CAMERA_LOG_PATH, "a", encoding="utf-8") as log_file:
+                log_file.write(f"[{_debug_timestamp()}] {message}\n")
+        except Exception:
+            pass
 
 
 class CameraControl:
@@ -60,7 +71,7 @@ class CameraControl:
         self._stop_event_thread = False
         self._liveview_exit_event = threading.Event()
         self._liveview_exit_event.set()
-        self._liveview_disable_pending = False
+        self._liveview_stop_requested = False
         self.init_error = None
 
         try:
@@ -246,109 +257,89 @@ class CameraControl:
         self.coreId = coreId
 
     def cleanup(self):
-        debug_log("[cleanup] Starting cleanup...")
+        debug_log("[cleanup] Starting")
+        self._liveview_stop_requested = True
         self.stopLiveView = True
         self._stop_event_thread = True
-        # Let the liveview thread wind down before closing the session.
         if self.t is not None:
-            debug_log("[cleanup] Waiting for liveview thread to exit with 3s timeout...")
-            self.t.join(timeout=3.0)
-            if self.t.is_alive():
-                debug_log(f"[cleanup] WARNING: Thread still alive after join timeout!")
-                # Last-resort unblock: EVF download can stay stuck until EVF output is cleared.
-                self._attempt_liveview_unblock()
-                self.t.join(timeout=2.0)
-                if self.t.is_alive():
-                    debug_log("[cleanup] WARNING: Liveview thread still alive after unblock attempt")
-                else:
-                    self.t = None
-            else:
-                self.t = None
+            self._wait_for_liveview_exit(timeout_s=5.0)
         if self.camera is not None:
             try:
-                debug_log("[cleanup] Closing session...")
                 eds.EdsCloseSession(self.camera)
-                debug_log("[cleanup] Releasing camera...")
                 eds.EdsRelease(self.camera)
             except Exception as e:
                 debug_log(f"[cleanup] Exception during session close: {e}")
-                pass
             self.camera = None
         if self._sdk_initialized:
             try:
-                debug_log("[cleanup] Terminating SDK...")
                 eds.EdsTerminateSDK()
             except Exception as e:
                 debug_log(f"[cleanup] Exception during SDK terminate: {e}")
-                pass
             self._sdk_initialized = False
         debug_log("[cleanup] Complete")
 
     def _wait_for_liveview_exit(self, timeout_s: float) -> bool:
+        """Wait for the liveview worker to exit, pumping EdsGetEvent() so
+        the SDK's internal COM dispatch stays alive.  Without the pump,
+        EdsDownloadEvfImage on the worker thread deadlocks on Windows."""
         if self.t is None:
             return True
 
-        debug_log(f"[_wait_for_liveview_exit] Waiting up to {timeout_s:.1f}s for liveview thread to exit...")
-        start = time.time()
-        self._liveview_exit_event.wait(timeout=timeout_s)
-        elapsed = time.time() - start
-        alive = self.t.is_alive()
-        debug_log(f"[_wait_for_liveview_exit] Waited {elapsed:.2f}s, thread alive: {alive}")
-        if alive:
-            return False
+        deadline = time.monotonic() + timeout_s
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            self._liveview_exit_event.wait(timeout=min(0.05, remaining))
+            if self._liveview_exit_event.is_set():
+                break
+            try:
+                eds.EdsGetEvent()
+            except Exception:
+                pass
 
-        self.t = None
-        return True
-
-    def _attempt_liveview_unblock(self) -> bool:
-        """Best-effort recovery when EdsDownloadEvfImage appears stuck."""
-        if self.camera is None:
-            return False
-        try:
-            debug_log("[_attempt_liveview_unblock] Attempting emergency EVF disable")
-            self._disable_evf()
-            return True
-        except Exception as exc:
-            debug_log(f"[_attempt_liveview_unblock] Emergency EVF disable failed: {exc}")
-            return False
-
-    def request_liveview_stop(self):
-        debug_log("[request_liveview_stop] Stop requested")
-        self.stopLiveView = True
-        self._liveview_disable_pending = True
-
-    def is_liveview_stopped(self) -> bool:
-        return self._liveview_exit_event.is_set()
-
-    def finalize_liveview_stop(self):
-        if not self._liveview_exit_event.is_set():
-            return False
-
-        if self.t is not None and not self.t.is_alive():
+        if not self.t.is_alive():
             self.t = None
+            return True
+        return False
 
-        if self._liveview_disable_pending:
+    def stop_liveview_blocking(self) -> bool:
+        """Request the worker to stop at the next frame boundary, then
+        wait (pumping SDK events) until it exits.  Disables EVF output
+        once the worker is done."""
+        debug_log("[stop_liveview_blocking] Requesting stop")
+        self._liveview_stop_requested = True
+
+        if self.t is None:
             self._disable_evf()
-            self._liveview_disable_pending = False
+            self._liveview_exit_event.set()
+            return True
 
+        # Wait without deadline — the worker will finish its current
+        # EdsDownloadEvfImage and then exit.
+        while not self._wait_for_liveview_exit(timeout_s=1.0):
+            pass
+
+        self._disable_evf()
         return True
 
     def setLiveView(self, liveView):
         if liveView:
             if not self.stopLiveView:
                 return True
+            if self.t is not None and self.t.is_alive():
+                return not self._liveview_stop_requested
+            self._liveview_stop_requested = False
             self.stopLiveView = False
-            self._liveview_disable_pending = False
             self._liveview_exit_event.clear()
-            
-            # Enable EVF on main thread BEFORE spawning daemon
+
             try:
                 self._enable_evf()
             except Exception as e:
                 print(f"Failed to enable EVF: {e}")
                 self.stopLiveView = True
                 return False
-            
+
             self.t = threading.Thread(
                 target=self.runLiveView, name="liveViewWorker", daemon=True
             )
@@ -356,22 +347,7 @@ class CameraControl:
             return True
         else:
             debug_log("[setLiveView] Stopping LiveView")
-            self.request_liveview_stop()
-
-            if not self._wait_for_liveview_exit(timeout_s=1.5):
-                debug_log("[setLiveView] LiveView worker did not exit quickly; attempting unblock")
-                self._attempt_liveview_unblock()
-                if not self._wait_for_liveview_exit(timeout_s=2.0):
-                    raise RuntimeError(
-                        "Liveview thread is still blocked in EdsDownloadEvfImage; refusing to touch camera state"
-                    )
-
-            try:
-                self.finalize_liveview_stop()
-            except Exception as exc:
-                debug_log(f"[setLiveView] _disable_evf failed: {exc}")
-            debug_log(f"[setLiveView] Exiting setLiveView(False)")
-            return True
+            return self.stop_liveview_blocking()
 
     # ------------------------------------------------------------------
     # Camera settings
@@ -419,29 +395,22 @@ class CameraControl:
             print(f"setupCamera: bad colorTemperature: {exc}")
 
     def _set_u32_property(self, prop_id, enum_value, label: str):
-        debug_log(f"[_set_u32_property] START: {label}")
         if self.camera is None:
             raise RuntimeError("Camera not initialized")
 
-        # If the camera reports a property description, only write supported values.
         try:
-            debug_log(f"[_set_u32_property] Getting property desc for {label}...")
             desc = eds.EdsPropertyDesc()
             err = eds.EdsGetPropertyDesc(self.camera, prop_id, ctypes.byref(desc))
             if err == 0 and desc.numElements > 0:
                 supported = {int(desc.propDesc[i]) for i in range(desc.numElements)}
                 if int(enum_value) not in supported:
                     raise ValueError(f"{label}: value not supported by current camera mode")
-            debug_log(f"[_set_u32_property] Property desc retrieved")
         except ValueError:
             raise
         except Exception:
-            # Some bodies/modes do not expose property desc reliably; fall back to direct write.
-            debug_log(f"[_set_u32_property] Property desc failed, falling back")
             pass
 
         val = eds.EdsUInt32(enum_value)
-        debug_log(f"[_set_u32_property] Calling EdsSetPropertyData for {label}...")
         eds.check(
             eds.EdsSetPropertyData(
                 self.camera, prop_id, 0,
@@ -449,7 +418,6 @@ class CameraControl:
             ),
             label,
         )
-        debug_log(f"[_set_u32_property] SUCCESS: {label}")
 
     def set_iso(self, iso_value: str):
         iso_enum = eds.ISO_MAP.get(str(iso_value))
@@ -502,35 +470,23 @@ class CameraControl:
         }
 
     def apply_exposure_settings(self, iso_value: str, shutter_value: str, fstop_value: str, wb_value: str = None):
-        debug_log(f"[apply_exposure_settings] START")
         was_liveview_on = not self.stopLiveView
         if was_liveview_on:
-            debug_log(f"[apply_exposure_settings] Liveview is on, stopping thread...")
-            self.setLiveView(False)
-
-            debug_log(f"[apply_exposure_settings] Liveview stopped cleanly, giving SDK time to settle...")
+            if not self.stop_liveview_blocking():
+                raise RuntimeError(
+                    "Could not stop LiveView cleanly before applying exposure settings"
+                )
             time.sleep(0.2)
 
         try:
-            debug_log(f"[apply_exposure_settings] Applying settings...")
             self.set_iso(iso_value)
-            debug_log(f"[apply_exposure_settings] ISO set")
             self.set_shutter(shutter_value)
-            debug_log(f"[apply_exposure_settings] Shutter set")
             self.set_aperture(fstop_value)
-            debug_log(f"[apply_exposure_settings] Aperture set")
             if wb_value is not None:
                 self.set_white_balance(wb_value)
-                debug_log(f"[apply_exposure_settings] White balance set")
         finally:
             if was_liveview_on:
-                debug_log(f"[apply_exposure_settings] Re-enabling liveview...")
-                try:
-                    self.setLiveView(True)
-                    debug_log(f"[apply_exposure_settings] Liveview re-enabled")
-                except Exception as e:
-                    debug_log(f"[apply_exposure_settings] Failed to restart liveview: {e}")
-        debug_log(f"[apply_exposure_settings] END")
+                self.setLiveView(True)
 
     def prepare_host_download(self):
         if self.camera is None:
@@ -673,36 +629,51 @@ class CameraControl:
         )
 
     def _disable_evf(self):
-        # Clear only the PC bit (read-modify-write per SDK sample EndEvfCommand).
-        # Setting to OFF (0) would also kill the camera's own TFT display.
-        # Usually called after liveview exits; may also be used as an emergency
-        # unblock attempt when EVF download appears stuck.
-        debug_log("[_disable_evf] START")
+        """Disable EVF output to PC (Canon SDK EndEvfCommand sequence)."""
         if self.camera is None:
-            debug_log("[_disable_evf] Camera is None, skipping")
             return
-            
+
+        # EVF AF OFF
+        try:
+            eds.EdsSendCommand(
+                self.camera,
+                eds.kEdsCameraCommand_DoEvfAf,
+                eds.kEdsCameraCommand_EvfAf_OFF,
+            )
+        except Exception:
+            pass
+
+        # Release depth-of-field preview
+        try:
+            dof_off = eds.EdsUInt32(0)
+            eds.EdsSetPropertyData(
+                self.camera,
+                eds.kEdsPropID_Evf_DepthOfFieldPreview,
+                0,
+                ctypes.sizeof(eds.EdsUInt32),
+                ctypes.byref(dof_off),
+            )
+            time.sleep(0.5)
+        except Exception:
+            pass
+
+        # Clear PC output bit (preserve TFT)
         device = eds.EdsUInt32(0)
-        debug_log("[_disable_evf] Getting current output device...")
         try:
             eds.EdsGetPropertyData(
                 self.camera, eds.kEdsPropID_Evf_OutputDevice, 0,
                 ctypes.sizeof(eds.EdsUInt32), ctypes.byref(device),
             )
-            debug_log(f"[_disable_evf] Current EVF output device: {device.value:#010x}")
-        except Exception as e:
-            debug_log(f"[_disable_evf] Exception getting property: {e}")
+        except Exception:
             pass
         device = eds.EdsUInt32(device.value & ~eds.kEdsEvfOutputDevice_PC & 0xFFFFFFFF)
-        debug_log(f"[_disable_evf] Setting output device to {device.value:#010x}")
         try:
             eds.EdsSetPropertyData(
                 self.camera, eds.kEdsPropID_Evf_OutputDevice, 0,
                 ctypes.sizeof(eds.EdsUInt32), ctypes.byref(device),
             )
-            debug_log("[_disable_evf] EVF output disabled successfully")
         except Exception as exc:
-            debug_log(f"[_disable_evf] Exception during setproperty: {exc}")
+            debug_log(f"[_disable_evf] Failed to clear EVF output: {exc}")
 
     def runLiveView(self):
         if self.camera is None:
@@ -710,99 +681,82 @@ class CameraControl:
 
         print("Init LiveView")
         time.sleep(1.0)  # Let EVF stabilize after enable
-        
+
         frame_count = 0
-
-        while True:
-            debug_log(f"[runLiveView] Loop start, frame_count={frame_count}")
-                
-            stream_ref = eds.EdsStreamRef()
-            evf_ref    = eds.EdsEvfImageRef()
-            try:
-                debug_log("[runLiveView] Creating memory stream...")
-                eds.check(
-                    eds.EdsCreateMemoryStream(0, ctypes.byref(stream_ref)),
-                    "EdsCreateMemoryStream",
-                )
-                debug_log("[runLiveView] Creating EVF image ref...")
-                eds.check(
-                    eds.EdsCreateEvfImageRef(stream_ref, ctypes.byref(evf_ref)),
-                    "EdsCreateEvfImageRef",
-                )
-                debug_log("[runLiveView] About to download EVF image...")
-                err = eds.EdsDownloadEvfImage(self.camera, evf_ref)
-                debug_log("[runLiveView] EdsDownloadEvfImage completed")
-                
-                # Transient startup/not-ready states are expected while EVF warms up.
-                if err in (0x00002C00, 0x0000A102):
-                    time.sleep(0.03)
-                    continue
-                eds.check(err, "EdsDownloadEvfImage")
-
-                ptr    = ctypes.c_void_p()
-                length = eds.EdsUInt64()
-                eds.check(eds.EdsGetPointer(stream_ref, ctypes.byref(ptr)), "EdsGetPointer")
-                eds.check(eds.EdsGetLength(stream_ref, ctypes.byref(length)),  "EdsGetLength")
-
-                if length.value > 0 and ptr.value:
-                    raw   = (ctypes.c_uint8 * length.value).from_address(ptr.value)
-                    array = np.frombuffer(raw, dtype=np.uint8)
-                    img   = cv2.imdecode(array, cv2.IMREAD_COLOR)
-
-                    if img is not None:
-                        h, w = img.shape[:2]
-                        left = (w - 500) // 2
-                        top  = (h - 500) // 2
-                        middle = img[top:top+500, left:left+500]
-                        gray   = cv2.cvtColor(middle, cv2.COLOR_BGR2GRAY)
-
-                        if frame_count > 5:
-                            lap = cv2.Laplacian(gray, cv2.CV_64F)
-                            self.laplacian = lap.var()
-
-                            b, g, r, _ = cv2.mean(middle)
-                            if (b + g + r) / 3 < 40:
-                                self.likelyBlank = True
-
-                        self.image = img
-
-            except Exception as exc:
-                debug_log(f"[runLiveView] Exception in frame processing: {exc}")
-                if self.stopLiveView:
-                    debug_log("[runLiveView] Received stop signal, exiting cleanly")
-                    break
-                print(f"runLiveView frame error: {exc}")
-            finally:
-                debug_log("[runLiveView] In finally block, releasing refs...")
-                if evf_ref.value:
-                    debug_log("[runLiveView] Releasing evf_ref...")
-                    eds.EdsRelease(evf_ref)
-                if stream_ref.value:
-                    debug_log("[runLiveView] Releasing stream_ref...")
-                    eds.EdsRelease(stream_ref)
-                debug_log("[runLiveView] Finally block complete")
-
-            # Check stopLiveView AFTER we've completed the full frame cycle
-            # This ensures the camera is in a good state before we exit
-            debug_log(f"[runLiveView] Frame complete, checking stopLiveView={self.stopLiveView}")
-            
-            if self.stopLiveView:
-                debug_log("[runLiveView] stopLiveView set to True, breaking from loop")
-                break
-
-            frame_count += 1
-            debug_log(f"[runLiveView] Incrementing frame_count to {frame_count}")
-
-        debug_log("[runLiveView] Exited main loop")
         try:
-            # Keep EVF shutdown in the worker path so regular stop does not rely
-            # on the main thread making SDK calls while liveview is active.
-            self._disable_evf()
-        except Exception as exc:
-            debug_log(f"[runLiveView] _disable_evf during shutdown failed: {exc}")
-        self.image = None
-        self._liveview_exit_event.set()
-        debug_log("[runLiveView] Thread exiting")
+            while True:
+                # Check stop flag before entering a new blocking download
+                if self._liveview_stop_requested:
+                    self.stopLiveView = True
+                    break
+
+                stream_ref = eds.EdsStreamRef()
+                evf_ref    = eds.EdsEvfImageRef()
+                try:
+                    eds.check(
+                        eds.EdsCreateMemoryStream(0, ctypes.byref(stream_ref)),
+                        "EdsCreateMemoryStream",
+                    )
+                    eds.check(
+                        eds.EdsCreateEvfImageRef(stream_ref, ctypes.byref(evf_ref)),
+                        "EdsCreateEvfImageRef",
+                    )
+
+                    err = eds.EdsDownloadEvfImage(self.camera, evf_ref)
+
+                    # Transient startup/not-ready states
+                    if err in (0x00002C00, 0x0000A102):
+                        time.sleep(0.03)
+                        continue
+                    eds.check(err, "EdsDownloadEvfImage")
+
+                    ptr    = ctypes.c_void_p()
+                    length = eds.EdsUInt64()
+                    eds.check(eds.EdsGetPointer(stream_ref, ctypes.byref(ptr)), "EdsGetPointer")
+                    eds.check(eds.EdsGetLength(stream_ref, ctypes.byref(length)),  "EdsGetLength")
+
+                    if length.value > 0 and ptr.value:
+                        raw   = (ctypes.c_uint8 * length.value).from_address(ptr.value)
+                        array = np.frombuffer(raw, dtype=np.uint8)
+                        img   = cv2.imdecode(array, cv2.IMREAD_COLOR)
+
+                        if img is not None:
+                            h, w = img.shape[:2]
+                            left = (w - 500) // 2
+                            top  = (h - 500) // 2
+                            middle = img[top:top+500, left:left+500]
+                            gray   = cv2.cvtColor(middle, cv2.COLOR_BGR2GRAY)
+
+                            if frame_count > 5:
+                                lap = cv2.Laplacian(gray, cv2.CV_64F)
+                                self.laplacian = lap.var()
+
+                                b, g, r, _ = cv2.mean(middle)
+                                if (b + g + r) / 3 < 40:
+                                    self.likelyBlank = True
+
+                            self.image = img
+
+                except Exception as exc:
+                    if self._liveview_stop_requested:
+                        break
+                    print(f"runLiveView frame error: {exc}")
+                finally:
+                    if evf_ref.value:
+                        eds.EdsRelease(evf_ref)
+                    if stream_ref.value:
+                        eds.EdsRelease(stream_ref)
+
+                # Stop at frame boundary (after full download + release)
+                if self._liveview_stop_requested:
+                    self.stopLiveView = True
+                    break
+
+                frame_count += 1
+        finally:
+            self.image = None
+            self._liveview_stop_requested = False
+            self._liveview_exit_event.set()
 
     # ------------------------------------------------------------------
     # Core imaging session
